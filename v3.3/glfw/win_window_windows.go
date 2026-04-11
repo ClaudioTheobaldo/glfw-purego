@@ -337,27 +337,132 @@ func (w *Window) SetCursorPos(x, y float64) {
 }
 
 // GetInputMode returns the current value of an input mode.
+// Only the Cursor mode is fully implemented; other modes return 0.
 func (w *Window) GetInputMode(mode InputMode) int {
-	// Stub — full raw mouse / sticky keys support is a future addition.
+	if mode == Cursor {
+		return int(w.cursorMode)
+	}
 	return 0
 }
 
 // SetInputMode sets an input mode on the window.
+//
+// Supported modes:
+//
+//	Cursor → CursorNormal, CursorHidden, CursorDisabled
+//
+// CursorDisabled hides the cursor AND clips it to the window client area,
+// which is the correct behaviour for first-person mouse-look.
+// CursorHidden hides the cursor without clipping.
+// CursorNormal restores the cursor to its default visible, unclipped state.
 func (w *Window) SetInputMode(mode InputMode, value int) {
-	// Stub — full cursor capture / hide support is a future addition.
+	if mode != Cursor {
+		return // other modes not yet implemented
+	}
+	prev := w.cursorMode
+	next := CursorMode(value)
+	if prev == next {
+		return
+	}
+
+	// Restore to normal first so each case starts from a clean slate.
+	if prev == CursorDisabled {
+		clipCursor(nil)
+		showCursor(true)
+	} else if prev == CursorHidden {
+		showCursor(true)
+	}
+
+	switch next {
+	case CursorNormal:
+		// already restored above
+
+	case CursorHidden:
+		showCursor(false)
+
+	case CursorDisabled:
+		// Hide and confine the cursor to the window client area.
+		showCursor(false)
+		rc := getClientRect(w.handle)
+		// Convert client-area corners to screen coordinates.
+		tl := _POINT{rc.Left, rc.Top}
+		br := _POINT{rc.Right, rc.Bottom}
+		clientToScreen(w.handle, &tl)
+		clientToScreen(w.handle, &br)
+		screenRect := _RECT{Left: tl.X, Top: tl.Y, Right: br.X, Bottom: br.Y}
+		clipCursor(&screenRect)
+	}
+
+	w.cursorMode = next
 }
 
 // ----------------------------------------------------------------------------
 // Clipboard
 // ----------------------------------------------------------------------------
 
-// GetClipboardString returns the current clipboard contents as a string.
-// TODO: implement Win32 GlobalAlloc/GlobalLock clipboard round-trip.
-func GetClipboardString() string { return "" }
+// GetClipboardString returns the current clipboard contents as a UTF-8 string.
+// Returns an empty string if the clipboard is empty or does not contain text.
+func GetClipboardString() string {
+	if !openClipboard(0) {
+		return ""
+	}
+	defer closeClipboard()
 
-// SetClipboardString sets the clipboard contents to the given string.
-// TODO: implement Win32 GlobalAlloc/GlobalLock clipboard round-trip.
-func SetClipboardString(s string) {}
+	hMem := getClipboardData(_CF_UNICODETEXT)
+	if hMem == 0 {
+		return ""
+	}
+	ptr := globalLock(hMem)
+	if ptr == nil {
+		return ""
+	}
+	defer globalUnlock(hMem)
+
+	// ptr points to a null-terminated UTF-16LE string.
+	// Find its length in uint16 code units.
+	p := (*[1 << 28]uint16)(ptr)
+	n := 0
+	for p[n] != 0 {
+		n++
+	}
+	return syscall.UTF16ToString(p[:n])
+}
+
+// SetClipboardString places the given UTF-8 string on the clipboard.
+func SetClipboardString(s string) {
+	utf16, err := syscall.UTF16FromString(s)
+	if err != nil {
+		return
+	}
+	// Allocate a moveable global block large enough for the UTF-16 string + NUL.
+	byteLen := uintptr(len(utf16) * 2)
+	hMem := globalAlloc(_GMEM_MOVEABLE, byteLen)
+	if hMem == 0 {
+		return
+	}
+
+	// Copy the UTF-16 data into the locked block.
+	ptr := globalLock(hMem)
+	if ptr == nil {
+		globalFree(hMem)
+		return
+	}
+	dst := (*[1 << 28]uint16)(ptr)
+	copy(dst[:len(utf16)], utf16)
+	globalUnlock(hMem)
+
+	if !openClipboard(0) {
+		globalFree(hMem)
+		return
+	}
+	emptyClipboard()
+	if setClipboardData(_CF_UNICODETEXT, hMem) == 0 {
+		// SetClipboardData failed; we must free the memory ourselves.
+		globalFree(hMem)
+	}
+	// On success the clipboard owns hMem — do NOT free it.
+	closeClipboard()
+}
 
 // ----------------------------------------------------------------------------
 // WndProc — the central Win32 message dispatcher

@@ -57,6 +57,13 @@ var (
 	procSetCursorPos         = modUser32.NewProc("SetCursorPos")
 	procGetCursorPos         = modUser32.NewProc("GetCursorPos")
 	procSetForegroundWindow  = modUser32.NewProc("SetForegroundWindow")
+	procShowCursor           = modUser32.NewProc("ShowCursor")
+	procClipCursor           = modUser32.NewProc("ClipCursor")
+	procOpenClipboard        = modUser32.NewProc("OpenClipboard")
+	procCloseClipboard       = modUser32.NewProc("CloseClipboard")
+	procEmptyClipboard       = modUser32.NewProc("EmptyClipboard")
+	procSetClipboardData     = modUser32.NewProc("SetClipboardData")
+	procGetClipboardData     = modUser32.NewProc("GetClipboardData")
 	procEnumDisplayMonitors  = modUser32.NewProc("EnumDisplayMonitors")
 	procGetMonitorInfoW      = modUser32.NewProc("GetMonitorInfoW")
 	procEnumDisplaySettingsW = modUser32.NewProc("EnumDisplaySettingsW")
@@ -88,6 +95,10 @@ var (
 var (
 	procGetModuleHandleW    = modKernel32.NewProc("GetModuleHandleW")
 	procGetProcAddress      = modKernel32.NewProc("GetProcAddress")
+	procGlobalAlloc         = modKernel32.NewProc("GlobalAlloc")
+	procGlobalFree          = modKernel32.NewProc("GlobalFree")
+	procGlobalLock          = modKernel32.NewProc("GlobalLock")
+	procGlobalUnlock        = modKernel32.NewProc("GlobalUnlock")
 )
 
 // ----------------------------------------------------------------------------
@@ -284,6 +295,62 @@ func setCursorPos(x, y int) {
 func setForegroundWindow(hwnd uintptr) {
 	procSetForegroundWindow.Call(hwnd)
 }
+
+// showCursor increments (show=true) or decrements (show=false) the cursor
+// display counter.  The cursor is visible when the counter >= 0.
+func showCursor(show bool) {
+	b := uintptr(0)
+	if show {
+		b = 1
+	}
+	procShowCursor.Call(b)
+}
+
+// clipCursor confines the cursor to the given screen rect.
+// Pass nil to release the confinement.
+func clipCursor(r *_RECT) {
+	if r == nil {
+		procClipCursor.Call(0)
+	} else {
+		procClipCursor.Call(uintptr(unsafe.Pointer(r)))
+	}
+}
+
+// ── Clipboard helpers ────────────────────────────────────────────────────────
+
+const (
+	_CF_UNICODETEXT = 13
+	_GMEM_MOVEABLE  = 0x0002
+)
+
+func openClipboard(hwnd uintptr) bool {
+	r, _, _ := procOpenClipboard.Call(hwnd)
+	return r != 0
+}
+func closeClipboard() { procCloseClipboard.Call() }
+func emptyClipboard() { procEmptyClipboard.Call() }
+
+func setClipboardData(format uint32, hMem uintptr) uintptr {
+	r, _, _ := procSetClipboardData.Call(uintptr(format), hMem)
+	return r
+}
+func getClipboardData(format uint32) uintptr {
+	r, _, _ := procGetClipboardData.Call(uintptr(format))
+	return r
+}
+
+func globalAlloc(flags uint32, size uintptr) uintptr {
+	r, _, _ := procGlobalAlloc.Call(uintptr(flags), size)
+	return r
+}
+func globalFree(hMem uintptr) { procGlobalFree.Call(hMem) }
+func globalLock(hMem uintptr) unsafe.Pointer {
+	r, _, _ := procGlobalLock.Call(hMem)
+	// r is a Windows GMEM memory address — not GC-managed.
+	// Convert via pointer indirection to avoid the go vet unsafeptr warning.
+	return *(*unsafe.Pointer)(unsafe.Pointer(&r))
+}
+func globalUnlock(hMem uintptr) { procGlobalUnlock.Call(hMem) }
 
 func enumDisplayMonitors(hdc, clip, callback, data uintptr) {
 	procEnumDisplayMonitors.Call(hdc, clip, callback, data)

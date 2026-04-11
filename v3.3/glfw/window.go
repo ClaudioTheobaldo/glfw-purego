@@ -75,6 +75,10 @@ type Window struct {
 	// shouldClose is set to true when the user requests the window to close.
 	shouldClose bool
 
+	// cursorMode tracks the current cursor visibility/capture state.
+	// One of CursorNormal, CursorHidden, CursorDisabled.
+	cursorMode CursorMode
+
 	// --- Callback holders (identical fields to go-gl/glfw) ---
 	fPosHolder             func(w *Window, xpos, ypos int)
 	fSizeHolder            func(w *Window, width, height int)
