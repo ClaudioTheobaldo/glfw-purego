@@ -325,5 +325,33 @@ const (
 	KeyRightAlt     Key = 346
 	KeyRightSuper   Key = 347
 	KeyMenu         Key = 348
-	KeyLast                  = KeyMenu
+
+	// Numpad keys
+	KeyKP0        Key = 320
+	KeyKP1        Key = 321
+	KeyKP2        Key = 322
+	KeyKP3        Key = 323
+	KeyKP4        Key = 324
+	KeyKP5        Key = 325
+	KeyKP6        Key = 326
+	KeyKP7        Key = 327
+	KeyKP8        Key = 328
+	KeyKP9        Key = 329
+	KeyKPDecimal  Key = 330
+	KeyKPDivide   Key = 331
+	KeyKPMultiply Key = 332
+	KeyKPSubtract Key = 333
+	KeyKPAdd      Key = 334
+	KeyKPEnter    Key = 335
+	KeyKPEqual    Key = 336
+
+	// Extra printable keys
+	KeyGraveAccent  Key = 96
+	KeyLeftBracket  Key = 91
+	KeyBackslash    Key = 92
+	KeyRightBracket Key = 93
+	KeyWorld1       Key = 161
+	KeyWorld2       Key = 162
+
+	KeyLast = KeyMenu
 )

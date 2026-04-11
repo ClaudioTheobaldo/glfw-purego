@@ -35,7 +35,7 @@ func resetHints() {
 		SRGBCapable:            0,
 		DoubleBuffer:           1,
 		RefreshRate:            -1, // GLFW_DONT_CARE
-		ClientAPI:              int(OpenGLAPI),
+		ClientAPIs:             int(OpenGLAPI),
 		ContextVersionMajor:    1,
 		ContextVersionMinor:    0,
 		OpenGLForwardCompatible: 0,
@@ -64,8 +64,13 @@ func DefaultWindowHints() {
 // called glfw.Init). This matches the contract of the original GLFW library.
 type Window struct {
 	// handle is the platform-specific window handle.
-	// Type and meaning varies by platform implementation.
+	// HWND on Windows, X Window ID on Linux, NSWindow ID on macOS.
 	handle uintptr
+
+	// Platform context handles — zero on platforms where not applicable.
+	dc    uintptr // HDC  (Windows)
+	hglrc uintptr // HGLRC (Windows)
+	hmon  uintptr // HMONITOR (Windows)
 
 	// shouldClose is set to true when the user requests the window to close.
 	shouldClose bool
