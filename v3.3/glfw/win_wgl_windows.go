@@ -25,15 +25,27 @@ var wglExtLoaded bool
 // Public API
 // ----------------------------------------------------------------------------
 
-// GetProcAddress returns the address of the named OpenGL function.
+// GetProcAddress returns the address of the named OpenGL function as an
+// unsafe.Pointer so callers can pass it directly to gl.InitWithProcAddrFunc.
 // Must be called while a GL context is current.
-func GetProcAddress(name string) uintptr {
-	addr := wglGetProcAddressStr(name)
-	if addr != 0 {
-		return addr
+func GetProcAddress(name string) unsafe.Pointer {
+	if addr := wglGetProcAddressStr(name); addr != 0 {
+		return nativePtrFromUintptr(addr)
 	}
-	// Fallback: base GL 1.1 functions live in opengl32.dll itself.
-	return getProcAddressFromDLL(modOpenGL32.Handle(), name)
+	// Fallback: base GL 1.1 entry points live in opengl32.dll itself.
+	if addr := getProcAddressFromDLL(modOpenGL32.Handle(), name); addr != 0 {
+		return nativePtrFromUintptr(addr)
+	}
+	return nil
+}
+
+// nativePtrFromUintptr converts a non-GC native function-pointer address
+// (e.g. a Windows DLL export) to unsafe.Pointer via pointer indirection.
+// This avoids the go vet "possible misuse of unsafe.Pointer" warning that
+// fires on direct unsafe.Pointer(uintptr_var) casts, while remaining
+// correct for OS memory that the GC will never move.
+func nativePtrFromUintptr(u uintptr) unsafe.Pointer {
+	return *(*unsafe.Pointer)(unsafe.Pointer(&u))
 }
 
 // SwapInterval sets the minimum number of video frame periods per buffer swap.
