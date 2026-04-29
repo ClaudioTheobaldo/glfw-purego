@@ -360,3 +360,11 @@ func CreateStandardCursor(shape StandardCursorShape) (*Cursor, error) {
 	return base.CreateStandardCursor(shape)
 }
 func DestroyCursor(cursor *Cursor) { base.DestroyCursor(cursor) }
+
+// ── Context management ────────────────────────────────────────────────────────
+
+func SwapInterval(interval int)                 { base.SwapInterval(interval) }
+func GetProcAddress(name string) unsafe.Pointer { return base.GetProcAddress(name) }
+func ExtensionSupported(extension string) bool  { return base.ExtensionSupported(extension) }
+func GetCurrentContext() *Window                { return base.GetCurrentContext() }
+func DetachCurrentContext()                     { base.DetachCurrentContext() }

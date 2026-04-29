@@ -1,6 +1,10 @@
 package glfw
 
-import base "github.com/ClaudioTheobaldo/glfw-purego/v3.3/glfw"
+import (
+	"unsafe"
+
+	base "github.com/ClaudioTheobaldo/glfw-purego/v3.3/glfw"
+)
 
 // ── Type aliases ──────────────────────────────────────────────────────────────
 type (
@@ -297,4 +301,17 @@ func GetJoystickAxes(joy Joystick) []float32         { return base.GetJoystickAx
 func GetJoystickButtons(joy Joystick) []Action       { return base.GetJoystickButtons(joy) }
 func GetJoystickHats(joy Joystick) []JoystickHatState { return base.GetJoystickHats(joy) }
 func GetJoystickName(joy Joystick) string            { return base.GetJoystickName(joy) }
-func GetJoystickGUID(joy Joystick) string            { return base.GetJoystickGUID(joy) }
+// Note: GetJoystickHats and GetJoystickGUID are 3.3 additions — not included here.
+
+// ── Context management ────────────────────────────────────────────────────────
+
+func SwapInterval(interval int)                        { base.SwapInterval(interval) }
+func GetProcAddress(name string) unsafe.Pointer        { return base.GetProcAddress(name) }
+func ExtensionSupported(extension string) bool         { return base.ExtensionSupported(extension) }
+func GetCurrentContext() *Window                       { return base.GetCurrentContext() }
+func DetachCurrentContext()                            { base.DetachCurrentContext() }
+
+// ── Window hints ──────────────────────────────────────────────────────────────
+
+func WindowHint(hint Hint, value int) { base.WindowHint(hint, value) }
+func DefaultWindowHints()             { base.DefaultWindowHints() }

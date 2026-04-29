@@ -373,3 +373,11 @@ func GetKeyScancode(key Key) int              { return base.GetKeyScancode(key) 
 
 func GetTimerFrequency() uint64 { return base.GetTimerFrequency() }
 func GetTimerValue() uint64     { return base.GetTimerValue() }
+
+// ── Context management ────────────────────────────────────────────────────────
+
+func SwapInterval(interval int)                 { base.SwapInterval(interval) }
+func GetProcAddress(name string) unsafe.Pointer { return base.GetProcAddress(name) }
+func ExtensionSupported(extension string) bool  { return base.ExtensionSupported(extension) }
+func GetCurrentContext() *Window                { return base.GetCurrentContext() }
+func DetachCurrentContext()                     { base.DetachCurrentContext() }
