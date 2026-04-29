@@ -33,6 +33,20 @@ func CreateStandardCursor(shape StandardCursorShape) (*Cursor, error) {
 		idc = _IDC_SIZEWE
 	case VResizeCursor:
 		idc = _IDC_SIZENS
+	case ResizeEWCursor:
+		idc = _IDC_SIZEWE
+	case ResizeNSCursor:
+		idc = _IDC_SIZENS
+	case ResizeNWSECursor:
+		idc = _IDC_SIZENWSE
+	case ResizeNESWCursor:
+		idc = _IDC_SIZENESW
+	case ResizeAllCursor:
+		idc = _IDC_SIZEALL
+	case PointingHandCursor:
+		idc = _IDC_HAND
+	case NotAllowedCursor:
+		idc = _IDC_NO
 	default:
 		return nil, &Error{Code: InvalidValue, Desc: "unknown cursor shape"}
 	}

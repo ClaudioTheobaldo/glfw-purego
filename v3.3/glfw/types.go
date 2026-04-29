@@ -80,10 +80,12 @@ const (
 	Repeat  Action = 2
 
 	// Modifier keys
-	ModShift   ModifierKey = 0x0001
-	ModControl ModifierKey = 0x0002
-	ModAlt     ModifierKey = 0x0004
-	ModSuper   ModifierKey = 0x0008
+	ModShift    ModifierKey = 0x0001
+	ModControl  ModifierKey = 0x0002
+	ModAlt      ModifierKey = 0x0004
+	ModSuper    ModifierKey = 0x0008
+	ModCapsLock ModifierKey = 0x0010
+	ModNumLock  ModifierKey = 0x0020
 
 	// Mouse buttons
 	MouseButtonLeft   MouseButton = 0
@@ -365,6 +367,15 @@ const (
 	HandCursor       StandardCursorShape = 0x00036004
 	HResizeCursor    StandardCursorShape = 0x00036005
 	VResizeCursor    StandardCursorShape = 0x00036006
+
+	// StandardCursorShape values added in GLFW 3.4
+	ResizeEWCursor     StandardCursorShape = 0x00036007
+	ResizeNSCursor     StandardCursorShape = 0x00036008
+	ResizeNWSECursor   StandardCursorShape = 0x00036009
+	ResizeNESWCursor   StandardCursorShape = 0x0003600A
+	ResizeAllCursor    StandardCursorShape = 0x0003600B
+	PointingHandCursor StandardCursorShape = 0x0003600C
+	NotAllowedCursor   StandardCursorShape = 0x0003600D
 )
 
 // Cursor is an opaque cursor object created by CreateCursor or CreateStandardCursor.
@@ -372,3 +383,31 @@ type Cursor struct {
 	handle uintptr // platform-specific handle (HCURSOR on Windows)
 	system bool    // true = system cursor, must not be destroyed
 }
+
+// Platform identifies the underlying window system (GLFW 3.4).
+type Platform int
+
+const (
+	AnyPlatform     Platform = 0x00060000
+	PlatformWin32   Platform = 0x00060001
+	PlatformCocoa   Platform = 0x00060002
+	PlatformWayland Platform = 0x00060003
+	PlatformX11     Platform = 0x00060004
+	PlatformNull    Platform = 0x00060005
+)
+
+// Error codes added in GLFW 3.4
+const (
+	PlatformUnavailable  ErrorCode = 0x0001000B
+	FeatureUnavailable   ErrorCode = 0x0001000C
+	FeatureUnimplemented ErrorCode = 0x0001000D
+)
+
+// Hint values added in GLFW 3.4
+const (
+	MousePassthrough Hint = 0x0002000D
+	PositionX        Hint = 0x0002000E
+	PositionY        Hint = 0x0002000F
+	AnyPosition           = 0x80000000
+	ScaleFramebuffer Hint = 0x0002200D
+)

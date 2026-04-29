@@ -78,6 +78,9 @@ type Window struct {
 	eglContext uintptr // EGLContext (Windows/EGL via ANGLE)
 	useEGL     bool    // true when the context was created via EGL
 
+	// title is the last title set via CreateWindow or SetTitle.
+	title string
+
 	// shouldClose is set to true when the user requests the window to close.
 	shouldClose bool
 
@@ -124,6 +127,10 @@ type Window struct {
 
 // ShouldClose returns true if the window has been requested to close.
 func (w *Window) ShouldClose() bool { return w.shouldClose }
+
+// InternalTitle returns the last title set via SetTitle or CreateWindow.
+// Exported for use by version wrapper packages.
+func (w *Window) InternalTitle() string { return w.title }
 
 // SetShouldClose sets the close flag on the window.
 func (w *Window) SetShouldClose(value bool) { w.shouldClose = value }

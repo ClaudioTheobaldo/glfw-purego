@@ -68,6 +68,7 @@ func CreateWindow(width, height int, title string, monitor, share *Monitor) (*Wi
 		}
 		w = &Window{handle: hwnd, dc: dc, hglrc: hglrc}
 	}
+	w.title = title
 	windowByHandle.Store(hwnd, w)
 
 	// Record a window handle for PostEmptyEvent (first window wins).
@@ -277,6 +278,7 @@ func getWindowMonitor(hwnd uintptr) uintptr {
 func (w *Window) SetTitle(title string) {
 	t, _ := syscall.UTF16PtrFromString(title)
 	setWindowTextW(w.handle, t)
+	w.title = title
 }
 
 // Iconify minimises the window.

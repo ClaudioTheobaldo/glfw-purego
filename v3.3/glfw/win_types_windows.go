@@ -488,11 +488,15 @@ const (
 
 // Additional IDC cursor shapes
 const (
-	_IDC_IBEAM  = uintptr(32513)
-	_IDC_CROSS  = uintptr(32515)
-	_IDC_HAND   = uintptr(32649)
-	_IDC_SIZEWE = uintptr(32644)
-	_IDC_SIZENS = uintptr(32645)
+	_IDC_IBEAM    = uintptr(32513)
+	_IDC_CROSS    = uintptr(32515)
+	_IDC_HAND     = uintptr(32649)
+	_IDC_SIZEWE   = uintptr(32644)
+	_IDC_SIZENS   = uintptr(32645)
+	_IDC_SIZENWSE = uintptr(32642)
+	_IDC_SIZENESW = uintptr(32643)
+	_IDC_SIZEALL  = uintptr(32646)
+	_IDC_NO       = uintptr(32648)
 )
 
 // WM_GETMINMAXINFO / WM_SIZING

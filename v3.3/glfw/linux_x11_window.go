@@ -119,6 +119,7 @@ func CreateWindow(width, height int, title string, monitor, share *Monitor) (*Wi
 		eglContext: ctx,
 		useEGL:     true,
 	}
+	w.title = title
 	windowByHandle.Store(uintptr(xwin), w)
 
 	// Initialise per-window state
@@ -226,6 +227,7 @@ func (w *Window) SetTitle(title string) {
 		8, 0,
 		uintptr(unsafe.Pointer(titlePtr)),
 		int32(len(title)))
+	w.title = title
 }
 
 // Iconify minimises the window.
