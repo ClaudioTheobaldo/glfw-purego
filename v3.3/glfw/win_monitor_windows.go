@@ -3,6 +3,7 @@
 package glfw
 
 import (
+	"math"
 	"syscall"
 	"unsafe"
 )
@@ -157,4 +158,77 @@ func (m *Monitor) GetVideoModes() []*VidMode {
 // SetMonitorCallback registers a callback for monitor connect/disconnect events.
 // Stub — not implemented on Windows yet.
 func SetMonitorCallback(cb func(monitor *Monitor, event PeripheralEvent)) {
+}
+
+// ── Monitor gamma ─────────────────────────────────────────────────────────────
+
+// GetGammaRamp returns the current gamma ramp for this monitor.
+func (m *Monitor) GetGammaRamp() *GammaRamp {
+	name16, _ := syscall.UTF16PtrFromString(m.name)
+	hdc := createDCW(nil, name16, nil, 0)
+	if hdc == 0 {
+		return nil
+	}
+	defer deleteDC(hdc)
+	var ramp _GAMMA_RAMP
+	if !getDeviceGammaRamp(hdc, &ramp) {
+		return nil
+	}
+	result := &GammaRamp{
+		Red:   make([]uint16, 256),
+		Green: make([]uint16, 256),
+		Blue:  make([]uint16, 256),
+	}
+	for i := 0; i < 256; i++ {
+		result.Red[i] = ramp[0][i]
+		result.Green[i] = ramp[1][i]
+		result.Blue[i] = ramp[2][i]
+	}
+	return result
+}
+
+// SetGammaRamp sets the gamma ramp for this monitor.
+// ramp must contain exactly 256 entries in each channel.
+func (m *Monitor) SetGammaRamp(ramp *GammaRamp) {
+	if ramp == nil || len(ramp.Red) != 256 || len(ramp.Green) != 256 || len(ramp.Blue) != 256 {
+		return
+	}
+	name16, _ := syscall.UTF16PtrFromString(m.name)
+	hdc := createDCW(nil, name16, nil, 0)
+	if hdc == 0 {
+		return
+	}
+	defer deleteDC(hdc)
+	var gr _GAMMA_RAMP
+	for i := 0; i < 256; i++ {
+		gr[0][i] = ramp.Red[i]
+		gr[1][i] = ramp.Green[i]
+		gr[2][i] = ramp.Blue[i]
+	}
+	setDeviceGammaRamp(hdc, &gr)
+}
+
+// SetGamma sets the monitor's gamma by computing a standard power-law ramp
+// and applying it via SetGammaRamp.
+func (m *Monitor) SetGamma(gamma float32) {
+	if gamma <= 0 {
+		return
+	}
+	inv := 1.0 / float64(gamma)
+	ramp := &GammaRamp{
+		Red:   make([]uint16, 256),
+		Green: make([]uint16, 256),
+		Blue:  make([]uint16, 256),
+	}
+	for i := 0; i < 256; i++ {
+		v := math.Pow(float64(i)/255.0, inv)
+		if v > 1.0 {
+			v = 1.0
+		}
+		val := uint16(v*65535.0 + 0.5)
+		ramp.Red[i] = val
+		ramp.Green[i] = val
+		ramp.Blue[i] = val
+	}
+	m.SetGammaRamp(ramp)
 }

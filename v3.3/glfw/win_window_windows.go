@@ -248,6 +248,25 @@ func (w *Window) GetFramebufferSize() (width, height int) {
 	return w.GetSize()
 }
 
+// GetFrameSize returns the size, in screen coordinates, of each edge of the
+// frame around the window's client area.
+func (w *Window) GetFrameSize() (left, top, right, bottom int) {
+	wr := getWindowRect(w.handle) // outer window rect in screen coords
+	cr := getClientRect(w.handle) // client rect (always starts at 0,0)
+	pt := _POINT{0, 0}
+	clientToScreen(w.handle, &pt) // client origin in screen coords
+	left   = int(pt.X - wr.Left)
+	top    = int(pt.Y - wr.Top)
+	right  = int(wr.Right - (pt.X + cr.Right))
+	bottom = int(wr.Bottom - (pt.Y + cr.Bottom))
+	return
+}
+
+// GetWindowFrameSize is a package-level wrapper around (*Window).GetFrameSize.
+func GetWindowFrameSize(w *Window) (left, top, right, bottom int) {
+	return w.GetFrameSize()
+}
+
 // GetContentScale returns the DPI scale factors for the monitor the window is on.
 func (w *Window) GetContentScale() (x, y float32) {
 	m := getWindowMonitor(w.handle)

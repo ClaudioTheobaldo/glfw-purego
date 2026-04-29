@@ -98,3 +98,23 @@ func SetTime(t float64) {
 // _wndClassName is the Win32 class name used for all glfw-purego windows.
 // Matches the string used by the reference GLFW C implementation.
 const _wndClassName = "GLFW30"
+
+// ── Version / init hints ──────────────────────────────────────────────────────
+
+// InitHint sets a hint for the next Init call.
+// Stub — hint storage is not needed in the purego implementation.
+func InitHint(hint Hint, value int) {}
+
+// GetVersion returns the compile-time version of the GLFW library.
+func GetVersion() (major, minor, revision int) { return 3, 3, 0 }
+
+// GetVersionString returns a human-readable version string.
+func GetVersionString() string { return "3.3.0 purego" }
+
+// RawMouseMotionSupported reports whether raw (unscaled, unaccelerated) mouse
+// motion is supported on the current platform.
+func RawMouseMotionSupported() bool { return false }
+
+// WindowHintString sets a string-valued window or context creation hint.
+// Stub — no string hints are used in the purego implementation.
+func WindowHintString(hint Hint, value string) {}

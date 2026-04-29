@@ -192,3 +192,51 @@ func (m *Monitor) GetWin32Adapter() string { return "" }
 
 // GetWin32Monitor is Windows-only; returns empty string on Linux.
 func (m *Monitor) GetWin32Monitor() string { return "" }
+
+// ── Version / init hints ──────────────────────────────────────────────────────
+
+// InitHint sets a hint for the next Init call.
+// Stub — hint storage is not needed in the purego implementation.
+func InitHint(hint Hint, value int) {}
+
+// GetVersion returns the compile-time version of the GLFW library.
+func GetVersion() (major, minor, revision int) { return 3, 3, 0 }
+
+// GetVersionString returns a human-readable version string.
+func GetVersionString() string { return "3.3.0 purego" }
+
+// RawMouseMotionSupported reports whether raw (unscaled, unaccelerated) mouse
+// motion is supported on the current platform.
+func RawMouseMotionSupported() bool { return false }
+
+// WindowHintString sets a string-valued window or context creation hint.
+// Stub — no string hints are used in the purego implementation.
+func WindowHintString(hint Hint, value string) {}
+
+// ── Monitor gamma — Linux stubs ───────────────────────────────────────────────
+
+// GetGammaRamp returns the monitor's gamma ramp.
+// Linux: not yet implemented; returns nil.
+func (m *Monitor) GetGammaRamp() *GammaRamp { return nil }
+
+// SetGammaRamp sets the monitor's gamma ramp.
+// Linux: not yet implemented.
+func (m *Monitor) SetGammaRamp(ramp *GammaRamp) {}
+
+// SetGamma sets the monitor's gamma by computing a standard power-law ramp.
+// Linux: not yet implemented.
+func (m *Monitor) SetGamma(gamma float32) {}
+
+// ── Cursor.Destroy — Linux ────────────────────────────────────────────────────
+
+// Destroy is a convenience method; it calls DestroyCursor(c).
+func (c *Cursor) Destroy() { DestroyCursor(c) }
+
+// ── Window.GetFrameSize — Linux stub ─────────────────────────────────────────
+
+// GetFrameSize returns the size of each edge of the frame around the window's
+// client area. Linux: returns zeros (stub).
+func (w *Window) GetFrameSize() (left, top, right, bottom int) { return 0, 0, 0, 0 }
+
+// GetWindowFrameSize is a package-level wrapper around (*Window).GetFrameSize.
+func GetWindowFrameSize(w *Window) (left, top, right, bottom int) { return w.GetFrameSize() }

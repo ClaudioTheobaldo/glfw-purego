@@ -411,3 +411,42 @@ const (
 	AnyPosition           = 0x80000000
 	ScaleFramebuffer Hint = 0x0002200D
 )
+
+// ── Named callback types ──────────────────────────────────────────────────────
+// These type aliases let callers annotate callback variables with named types,
+// matching the go-gl/glfw API style.
+
+type (
+	ErrorCallback           = func(code ErrorCode, desc string)
+	MonitorCallback         = func(*Monitor, PeripheralEvent)
+	JoystickCallback        = func(Joystick, PeripheralEvent)
+	KeyCallback             = func(*Window, Key, int, Action, ModifierKey)
+	CharCallback            = func(*Window, rune)
+	CharModsCallback        = func(*Window, rune, ModifierKey)
+	MouseButtonCallback     = func(*Window, MouseButton, Action, ModifierKey)
+	CursorPosCallback       = func(*Window, float64, float64)
+	CursorEnterCallback     = func(*Window, bool)
+	ScrollCallback          = func(*Window, float64, float64)
+	FramebufferSizeCallback = func(*Window, int, int)
+	SizeCallback            = func(*Window, int, int)
+	PosCallback             = func(*Window, int, int)
+	FocusCallback           = func(*Window, bool)
+	IconifyCallback         = func(*Window, bool)
+	MaximizeCallback        = func(*Window, bool)
+	RefreshCallback         = func(*Window)
+	CloseCallback           = func(*Window)
+	DropCallback            = func(*Window, []string)
+	ContentScaleCallback    = func(*Window, float32, float32)
+)
+
+// ── Joystick receiver methods ─────────────────────────────────────────────────
+
+func (j Joystick) Present() bool                        { return JoystickPresent(j) }
+func (j Joystick) GetAxes() []float32                   { return GetJoystickAxes(j) }
+func (j Joystick) GetButtons() []Action                 { return GetJoystickButtons(j) }
+func (j Joystick) GetHats() []JoystickHatState          { return GetJoystickHats(j) }
+func (j Joystick) GetName() string                      { return GetJoystickName(j) }
+func (j Joystick) GetGUID() string                      { return GetJoystickGUID(j) }
+func (j Joystick) IsGamepad() bool                      { return JoystickIsGamepad(j) }
+func (j Joystick) GetGamepadName() string               { return GetGamepadName(j) }
+func (j Joystick) GetGamepadState(s *GamepadState) bool { return GetGamepadState(j, s) }

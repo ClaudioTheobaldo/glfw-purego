@@ -1,6 +1,7 @@
 package glfw
 
 import (
+	goimage "image"
 	"unsafe"
 
 	base "github.com/ClaudioTheobaldo/glfw-purego/v3.3/glfw"
@@ -13,6 +14,31 @@ type (
 	VidMode      = base.VidMode
 	Image        = base.Image
 	GamepadState = base.GamepadState
+	GammaRamp    = base.GammaRamp
+)
+
+// ── Named callback types ──────────────────────────────────────────────────────
+type (
+	ErrorCallback           = base.ErrorCallback
+	MonitorCallback         = base.MonitorCallback
+	JoystickCallback        = base.JoystickCallback
+	KeyCallback             = base.KeyCallback
+	CharCallback            = base.CharCallback
+	CharModsCallback        = base.CharModsCallback
+	MouseButtonCallback     = base.MouseButtonCallback
+	CursorPosCallback       = base.CursorPosCallback
+	CursorEnterCallback     = base.CursorEnterCallback
+	ScrollCallback          = base.ScrollCallback
+	FramebufferSizeCallback = base.FramebufferSizeCallback
+	SizeCallback            = base.SizeCallback
+	PosCallback             = base.PosCallback
+	FocusCallback           = base.FocusCallback
+	IconifyCallback         = base.IconifyCallback
+	MaximizeCallback        = base.MaximizeCallback
+	RefreshCallback         = base.RefreshCallback
+	CloseCallback           = base.CloseCallback
+	DropCallback            = base.DropCallback
+	ContentScaleCallback    = base.ContentScaleCallback
 )
 
 // ── Re-exported types for callback signatures ─────────────────────────────────
@@ -315,3 +341,21 @@ func DetachCurrentContext()                            { base.DetachCurrentConte
 
 func WindowHint(hint Hint, value int) { base.WindowHint(hint, value) }
 func DefaultWindowHints()             { base.DefaultWindowHints() }
+
+// ── New APIs (back-ported from newer versions) ────────────────────────────────
+
+// GoWindow returns the *Window associated with the given platform handle.
+func GoWindow(ptr unsafe.Pointer) *Window { return base.GoWindow(ptr) }
+
+// GetVersion returns the compile-time version of the GLFW library.
+func GetVersion() (major, minor, revision int) { return base.GetVersion() }
+
+// GetVersionString returns a human-readable version string.
+func GetVersionString() string { return base.GetVersionString() }
+
+// RawMouseMotionSupported reports whether raw mouse motion is supported.
+func RawMouseMotionSupported() bool { return base.RawMouseMotionSupported() }
+
+// SetIconFromImages converts stdlib image.Image values to the native []Image
+// format and calls w.SetIcon.
+func SetIconFromImages(w *Window, imgs []goimage.Image) { base.SetIconFromImages(w, imgs) }

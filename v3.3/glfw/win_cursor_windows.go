@@ -67,3 +67,6 @@ func DestroyCursor(cursor *Cursor) {
 	destroyIcon(cursor.handle)
 	cursor.handle = 0
 }
+
+// Destroy is a convenience method; it calls DestroyCursor(c).
+func (c *Cursor) Destroy() { DestroyCursor(c) }

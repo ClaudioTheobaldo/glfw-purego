@@ -1,6 +1,10 @@
 package glfw
 
-import "sync"
+import (
+	goimage "image"
+	"sync"
+	"unsafe"
+)
 
 // hints holds the current window / context creation hints set via WindowHint.
 // Reset to defaults by Init() and by DefaultWindowHints().
@@ -192,3 +196,78 @@ func (w *Window) SetDropCallback(cb func(w *Window, names []string)) func(w *Win
 // windowByHandle is the global registry mapping platform handles → *Window.
 // Keyed by uintptr (HWND on Windows, X Window ID on Linux, NSWindow ID on macOS).
 var windowByHandle sync.Map
+
+// ── User pointer map ──────────────────────────────────────────────────────────
+
+var (
+	userPtrMu sync.RWMutex
+	userPtrs  = make(map[*Window]unsafe.Pointer)
+)
+
+// SetUserPointer stores an arbitrary pointer associated with the window.
+func (w *Window) SetUserPointer(ptr unsafe.Pointer) {
+	userPtrMu.Lock()
+	userPtrs[w] = ptr
+	userPtrMu.Unlock()
+}
+
+// GetUserPointer retrieves the pointer previously stored by SetUserPointer.
+func (w *Window) GetUserPointer() unsafe.Pointer {
+	userPtrMu.RLock()
+	p := userPtrs[w]
+	userPtrMu.RUnlock()
+	return p
+}
+
+// SetWindowUserPointer stores an arbitrary pointer associated with the window.
+// Package-level variant for go-gl/glfw API compatibility.
+func SetWindowUserPointer(w *Window, ptr unsafe.Pointer) { w.SetUserPointer(ptr) }
+
+// GetWindowUserPointer retrieves the pointer previously set by SetWindowUserPointer.
+func GetWindowUserPointer(w *Window) unsafe.Pointer { return w.GetUserPointer() }
+
+// ── Handle / GoWindow ─────────────────────────────────────────────────────────
+
+// Handle returns the platform-specific window handle as an unsafe.Pointer.
+// On Windows this is the HWND; on Linux it is the X Window ID cast to a pointer.
+func (w *Window) Handle() unsafe.Pointer {
+	return unsafe.Pointer(w.handle)
+}
+
+// GoWindow returns the *Window associated with the given platform handle,
+// or nil if no such window exists. ptr must be a value previously returned
+// by (*Window).Handle().
+func GoWindow(ptr unsafe.Pointer) *Window {
+	v, ok := windowByHandle.Load(uintptr(ptr))
+	if !ok {
+		return nil
+	}
+	return v.(*Window)
+}
+
+// ── SetIconFromImages ─────────────────────────────────────────────────────────
+
+// SetIconFromImages converts standard-library image.Image values to the
+// native []Image format and calls w.SetIcon. It is a convenience wrapper
+// for callers that work with stdlib images.
+func SetIconFromImages(w *Window, imgs []goimage.Image) {
+	result := make([]Image, 0, len(imgs))
+	for _, img := range imgs {
+		bounds := img.Bounds()
+		width := bounds.Dx()
+		height := bounds.Dy()
+		pixels := make([]uint8, width*height*4)
+		for y := 0; y < height; y++ {
+			for x := 0; x < width; x++ {
+				r, g, b, a := img.At(bounds.Min.X+x, bounds.Min.Y+y).RGBA()
+				i := (y*width + x) * 4
+				pixels[i+0] = uint8(r >> 8)
+				pixels[i+1] = uint8(g >> 8)
+				pixels[i+2] = uint8(b >> 8)
+				pixels[i+3] = uint8(a >> 8)
+			}
+		}
+		result = append(result, Image{Width: width, Height: height, Pixels: pixels})
+	}
+	w.SetIcon(result)
+}

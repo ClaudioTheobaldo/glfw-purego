@@ -1,7 +1,7 @@
 package glfw
 
 import (
-	"sync"
+	goimage "image"
 	"unsafe"
 
 	base "github.com/ClaudioTheobaldo/glfw-purego/v3.3/glfw"
@@ -14,8 +14,33 @@ type (
 	VidMode             = base.VidMode
 	Image               = base.Image
 	GamepadState        = base.GamepadState
+	GammaRamp           = base.GammaRamp
 	Cursor              = base.Cursor
 	StandardCursorShape = base.StandardCursorShape
+)
+
+// ── Named callback types ──────────────────────────────────────────────────────
+type (
+	ErrorCallback           = base.ErrorCallback
+	MonitorCallback         = base.MonitorCallback
+	JoystickCallback        = base.JoystickCallback
+	KeyCallback             = base.KeyCallback
+	CharCallback            = base.CharCallback
+	CharModsCallback        = base.CharModsCallback
+	MouseButtonCallback     = base.MouseButtonCallback
+	CursorPosCallback       = base.CursorPosCallback
+	CursorEnterCallback     = base.CursorEnterCallback
+	ScrollCallback          = base.ScrollCallback
+	FramebufferSizeCallback = base.FramebufferSizeCallback
+	SizeCallback            = base.SizeCallback
+	PosCallback             = base.PosCallback
+	FocusCallback           = base.FocusCallback
+	IconifyCallback         = base.IconifyCallback
+	MaximizeCallback        = base.MaximizeCallback
+	RefreshCallback         = base.RefreshCallback
+	CloseCallback           = base.CloseCallback
+	DropCallback            = base.DropCallback
+	ContentScaleCallback    = base.ContentScaleCallback
 )
 
 // ── Re-exported types for callback signatures ─────────────────────────────────
@@ -289,35 +314,31 @@ const (
 	KeyLast                = base.KeyLast
 )
 
-// ── Window user pointer (v3.1 addition) ───────────────────────────────────────
-// v3.3 does not store a user pointer in the Window struct, so we use
-// a package-level map keyed by the window pointer.
-
-var (
-	userPtrMu sync.RWMutex
-	userPtrs  = make(map[*Window]unsafe.Pointer)
-)
-
 // SetWindowUserPointer stores an arbitrary pointer associated with the window.
-func SetWindowUserPointer(w *Window, ptr unsafe.Pointer) {
-	userPtrMu.Lock()
-	userPtrs[w] = ptr
-	userPtrMu.Unlock()
-}
+func SetWindowUserPointer(w *Window, ptr unsafe.Pointer) { w.SetUserPointer(ptr) }
 
 // GetWindowUserPointer retrieves the pointer previously set by SetWindowUserPointer.
-func GetWindowUserPointer(w *Window) unsafe.Pointer {
-	userPtrMu.RLock()
-	p := userPtrs[w]
-	userPtrMu.RUnlock()
-	return p
-}
+func GetWindowUserPointer(w *Window) unsafe.Pointer { return w.GetUserPointer() }
 
-// GetWindowFrameSize returns the size of each edge of the frame around the
-// window's client area. This is a stub returning zeros.
-func GetWindowFrameSize(w *Window) (left, top, right, bottom int) {
-	return 0, 0, 0, 0
-}
+// GetWindowFrameSize returns the size of each edge of the frame around the window's client area.
+func GetWindowFrameSize(w *Window) (left, top, right, bottom int) { return base.GetWindowFrameSize(w) }
+
+// GoWindow returns the *Window associated with the given platform handle,
+// or nil if no such window exists.
+func GoWindow(ptr unsafe.Pointer) *Window { return base.GoWindow(ptr) }
+
+// GetVersion returns the compile-time version of the GLFW library.
+func GetVersion() (major, minor, revision int) { return base.GetVersion() }
+
+// GetVersionString returns a human-readable version string.
+func GetVersionString() string { return base.GetVersionString() }
+
+// RawMouseMotionSupported reports whether raw mouse motion is supported.
+func RawMouseMotionSupported() bool { return base.RawMouseMotionSupported() }
+
+// SetIconFromImages converts stdlib image.Image values to the native []Image
+// format and calls w.SetIcon.
+func SetIconFromImages(w *Window, imgs []goimage.Image) { base.SetIconFromImages(w, imgs) }
 
 // ── Functions ─────────────────────────────────────────────────────────────────
 

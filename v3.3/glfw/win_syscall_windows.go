@@ -99,6 +99,10 @@ var (
 	procCreateDIBSection    = modGdi32.NewProc("CreateDIBSection")
 	procCreateBitmap        = modGdi32.NewProc("CreateBitmap")
 	procDeleteObject        = modGdi32.NewProc("DeleteObject")
+	procCreateDCW           = modGdi32.NewProc("CreateDCW")
+	procDeleteDC            = modGdi32.NewProc("DeleteDC")
+	procGetDeviceGammaRamp  = modGdi32.NewProc("GetDeviceGammaRamp")
+	procSetDeviceGammaRamp  = modGdi32.NewProc("SetDeviceGammaRamp")
 )
 
 // ----------------------------------------------------------------------------
@@ -639,4 +643,35 @@ func mapVirtualKeyW(uCode, uMapType uint32) uint32 {
 func getKeyNameTextW(lParam uintptr, buf []uint16) int {
 	r, _, _ := procGetKeyNameTextW.Call(lParam, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
 	return int(r)
+}
+
+// ----------------------------------------------------------------------------
+// Typed wrappers — gdi32 (gamma ramp / device context)
+// ----------------------------------------------------------------------------
+
+// createDCW creates a device context for the named display device.
+// Pass nil for driver; device is the monitor name (e.g. "\\.\DISPLAY1").
+func createDCW(driver, device, output *uint16, initData uintptr) uintptr {
+	r, _, _ := procCreateDCW.Call(
+		uintptr(unsafe.Pointer(driver)),
+		uintptr(unsafe.Pointer(device)),
+		uintptr(unsafe.Pointer(output)),
+		initData,
+	)
+	return r
+}
+
+func deleteDC(hdc uintptr) { procDeleteDC.Call(hdc) }
+
+// _GAMMA_RAMP is the Win32 RAMP structure: 3 channels × 256 uint16 entries.
+type _GAMMA_RAMP [3][256]uint16
+
+func getDeviceGammaRamp(hdc uintptr, ramp *_GAMMA_RAMP) bool {
+	r, _, _ := procGetDeviceGammaRamp.Call(hdc, uintptr(unsafe.Pointer(ramp)))
+	return r != 0
+}
+
+func setDeviceGammaRamp(hdc uintptr, ramp *_GAMMA_RAMP) bool {
+	r, _, _ := procSetDeviceGammaRamp.Call(hdc, uintptr(unsafe.Pointer(ramp)))
+	return r != 0
 }
