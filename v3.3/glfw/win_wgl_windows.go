@@ -25,16 +25,29 @@ var wglExtLoaded bool
 // Public API
 // ----------------------------------------------------------------------------
 
-// GetProcAddress returns the address of the named OpenGL function as an
-// unsafe.Pointer so callers can pass it directly to gl.InitWithProcAddrFunc.
-// Must be called while a GL context is current.
+// GetProcAddress returns the address of the named OpenGL / OpenGL ES function
+// as an unsafe.Pointer suitable for passing to gl.InitWithProcAddrFunc.
+// Must be called while a context is current.
+//
+// For EGL/GLES contexts (ANGLE on Windows) eglGetProcAddress is tried first
+// because it covers all GLES core functions and extensions.  WGL + opengl32.dll
+// are used as the fallback for desktop OpenGL contexts.
 func GetProcAddress(name string) unsafe.Pointer {
+	// eglGetProcAddress covers GLES core and extensions when ANGLE is loaded.
+	if eglLibLoaded {
+		if p := eglGetProcAddr(name); p != nil {
+			return p
+		}
+	}
+	// WGL path for desktop OpenGL.
 	if addr := wglGetProcAddressStr(name); addr != 0 {
 		return nativePtrFromUintptr(addr)
 	}
-	// Fallback: base GL 1.1 entry points live in opengl32.dll itself.
-	if addr := getProcAddressFromDLL(modOpenGL32.Handle(), name); addr != 0 {
-		return nativePtrFromUintptr(addr)
+	// Base GL 1.1 entry points live in opengl32.dll itself.
+	if modOpenGL32 != nil {
+		if addr := getProcAddressFromDLL(modOpenGL32.Handle(), name); addr != 0 {
+			return nativePtrFromUintptr(addr)
+		}
 	}
 	return nil
 }
@@ -49,7 +62,12 @@ func nativePtrFromUintptr(u uintptr) unsafe.Pointer {
 }
 
 // SwapInterval sets the minimum number of video frame periods per buffer swap.
+// Works for both WGL (desktop GL) and EGL (GLES via ANGLE) contexts.
 func SwapInterval(interval int) {
+	if eglLibLoaded && currentEGLDisplay != 0 {
+		eglSwapIntervalNow(interval)
+		return
+	}
 	if wglSwapIntervalEXT != 0 {
 		syscall.SyscallN(wglSwapIntervalEXT, uintptr(interval))
 	}

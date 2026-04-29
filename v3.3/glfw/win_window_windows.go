@@ -4,6 +4,7 @@ package glfw
 
 import (
 	"syscall"
+	"unsafe"
 )
 
 // ----------------------------------------------------------------------------
@@ -42,21 +43,37 @@ func CreateWindow(width, height int, title string, monitor, share *Monitor) (*Wi
 		return nil, &Error{Code: PlatformError, Desc: err.Error()}
 	}
 
-	dc, err := getDC(hwnd)
-	if err != nil {
-		destroyWindow(hwnd)
-		return nil, &Error{Code: PlatformError, Desc: err.Error()}
-	}
+	var w *Window
 
-	hglrc, err := createWGLContext(dc, h)
-	if err != nil {
-		releaseDC(hwnd, dc)
-		destroyWindow(hwnd)
-		return nil, err
+	if shouldUseEGL(h) {
+		// EGL path — used for OpenGL ES (via ANGLE on Windows).
+		surf, ctx, eglErr := createEGLContext(hwnd, h)
+		if eglErr != nil {
+			destroyWindow(hwnd)
+			return nil, eglErr
+		}
+		w = &Window{handle: hwnd, eglSurface: surf, eglContext: ctx, useEGL: true}
+	} else {
+		// WGL path — used for desktop OpenGL (default).
+		dc, dcErr := getDC(hwnd)
+		if dcErr != nil {
+			destroyWindow(hwnd)
+			return nil, &Error{Code: PlatformError, Desc: dcErr.Error()}
+		}
+		hglrc, ctxErr := createWGLContext(dc, h)
+		if ctxErr != nil {
+			releaseDC(hwnd, dc)
+			destroyWindow(hwnd)
+			return nil, ctxErr
+		}
+		w = &Window{handle: hwnd, dc: dc, hglrc: hglrc}
 	}
-
-	w := &Window{handle: hwnd, dc: dc, hglrc: hglrc}
 	windowByHandle.Store(hwnd, w)
+
+	// Record a window handle for PostEmptyEvent (first window wins).
+	if gPostHwnd == 0 {
+		gPostHwnd = hwnd
+	}
 
 	// Enable drag-and-drop.
 	dragAcceptFiles(hwnd, true)
@@ -96,17 +113,21 @@ func buildWindowStyle(h map[Hint]int) (style, exStyle uintptr) {
 // Window destruction
 // ----------------------------------------------------------------------------
 
-// destroyWindowPlatform releases the DC, WGL context, and Win32 window.
+// destroyWindowPlatform releases the context (WGL or EGL), DC, and Win32 window.
 func destroyWindowPlatform(w *Window) {
 	windowByHandle.Delete(w.handle)
-	if w.hglrc != 0 {
-		wglMakeCurrent(0, 0)
-		wglDeleteContext(w.hglrc)
-		w.hglrc = 0
-	}
-	if w.dc != 0 {
-		releaseDC(w.handle, w.dc)
-		w.dc = 0
+	if w.useEGL {
+		eglDestroyWindow(w)
+	} else {
+		if w.hglrc != 0 {
+			wglMakeCurrent(0, 0)
+			wglDeleteContext(w.hglrc)
+			w.hglrc = 0
+		}
+		if w.dc != 0 {
+			releaseDC(w.handle, w.dc)
+			w.dc = 0
+		}
 	}
 	if w.handle != 0 {
 		destroyWindow(w.handle)
@@ -123,32 +144,51 @@ func (w *Window) Destroy() {
 // Context methods
 // ----------------------------------------------------------------------------
 
-// MakeContextCurrent makes the window's OpenGL context current on the
-// calling goroutine's OS thread.
+// MakeContextCurrent makes the window's OpenGL (or OpenGL ES) context current
+// on the calling goroutine's OS thread.
 func (w *Window) MakeContextCurrent() {
-	wglMakeCurrent(w.dc, w.hglrc)
+	if w.useEGL {
+		eglMakeCurrentWindow(w)
+	} else {
+		wglMakeCurrent(w.dc, w.hglrc)
+	}
 }
 
 // SwapBuffers swaps the front and back buffers.
 func (w *Window) SwapBuffers() {
-	swapBuffers(w.dc)
+	if w.useEGL {
+		eglSwapBuffersWindow(w)
+	} else {
+		swapBuffers(w.dc)
+	}
 }
 
-// DetachCurrentContext detaches the current GL context from the calling thread.
+// DetachCurrentContext detaches the current GL (or GLES) context from the
+// calling thread.
 func DetachCurrentContext() {
+	if eglLibLoaded && currentEGLDisplay != 0 {
+		procEGLMakeCurrent.Call(currentEGLDisplay, _EGL_NO_SURFACE, _EGL_NO_SURFACE, _EGL_NO_CONTEXT)
+		currentEGLDisplay = 0
+		return
+	}
 	wglMakeCurrent(0, 0)
 }
 
 // GetCurrentContext returns the window whose context is current on this thread,
 // or nil if none.
 func GetCurrentContext() *Window {
-	// wglGetCurrentDC is loaded but not used here; instead we scan the map.
-	// This is called infrequently so the linear scan is acceptable.
 	var found *Window
 	windowByHandle.Range(func(k, v any) bool {
 		w := v.(*Window)
-		if w.dc != 0 && w.hglrc != 0 {
-			// Check if this window's context is the current one.
+		if w.useEGL {
+			if eglLibLoaded {
+				cur, _, _ := procEGLGetCurrentContext.Call()
+				if cur != 0 && cur == w.eglContext {
+					found = w
+					return false
+				}
+			}
+		} else if w.dc != 0 && w.hglrc != 0 {
 			r, _, _ := procWglGetCurrentContext.Call()
 			if r == w.hglrc {
 				found = w
@@ -289,6 +329,267 @@ func (w *Window) GetMonitor() *Monitor {
 	return monitorFromHandle(hmon)
 }
 
+// SetMonitor switches the window to fullscreen on the given monitor, or back to
+// windowed mode when monitor is nil.
+//
+// When going fullscreen: xpos/ypos are ignored; width/height set the desired
+// framebuffer resolution; refreshRate (or -1 for current) sets the display mode.
+//
+// When going windowed: xpos/ypos set the window position; width/height set the
+// client area size.
+func (w *Window) SetMonitor(monitor *Monitor, xpos, ypos, width, height, refreshRate int) {
+	if monitor != nil {
+		// Save current windowed state before first fullscreen transition.
+		if w.fsMonitor == nil {
+			w.savedX, w.savedY = w.GetPos()
+			w.savedW, w.savedH = w.GetSize()
+			w.savedStyle   = getWindowLongW(w.handle, _GWL_STYLE)
+			w.savedExStyle = getWindowLongW(w.handle, _GWL_EXSTYLE)
+		}
+
+		// Change display mode if a specific resolution or refresh rate is requested.
+		if width > 0 && height > 0 {
+			var dm _DEVMODEW
+			dm.DmSize   = uint16(unsafe.Sizeof(dm))
+			dm.DmFields = _DM_PELSWIDTH | _DM_PELSHEIGHT | _DM_BITSPERPEL
+			dm.DmPelsWidth  = uint32(width)
+			dm.DmPelsHeight = uint32(height)
+			dm.DmBitsPerPel = 32
+			if refreshRate > 0 {
+				dm.DmFields |= _DM_DISPLAYFREQUENCY
+				dm.DmDisplayFrequency = uint32(refreshRate)
+			}
+			devName, _ := syscall.UTF16PtrFromString(monitor.name)
+			changeDisplaySettingsExW(devName, &dm, _CDS_FULLSCREEN)
+		}
+
+		// Get the monitor work rectangle (full screen area).
+		var mi _MONITORINFOEXW
+		mi.CbSize = uint32(unsafe.Sizeof(mi))
+		getMonitorInfoW(monitor.hmon, &mi)
+		mr := mi.RcMonitor
+
+		// Switch to borderless popup style.
+		newStyle   := _WS_POPUP | _WS_CLIPSIBLINGS | _WS_CLIPCHILDREN
+		newExStyle := _WS_EX_APPWINDOW
+		setWindowLongW(w.handle, _GWL_STYLE, newStyle)
+		setWindowLongW(w.handle, _GWL_EXSTYLE, newExStyle)
+		setWindowPos(w.handle, _HWND_TOP,
+			int(mr.Left), int(mr.Top),
+			int(mr.Right-mr.Left), int(mr.Bottom-mr.Top),
+			_SWP_NOACTIVATE|_SWP_FRAMECHANGED,
+		)
+		showWindow(w.handle, _SW_SHOW)
+		w.fsMonitor = monitor
+
+	} else {
+		// Restore display mode if we were fullscreen.
+		if w.fsMonitor != nil {
+			devName, _ := syscall.UTF16PtrFromString(w.fsMonitor.name)
+			changeDisplaySettingsExW(devName, nil, 0)
+			w.fsMonitor = nil
+		}
+
+		// Restore window styles.
+		setWindowLongW(w.handle, _GWL_STYLE, w.savedStyle)
+		setWindowLongW(w.handle, _GWL_EXSTYLE, w.savedExStyle)
+
+		// Use provided dimensions/position, falling back to saved values.
+		x, y := w.savedX, w.savedY
+		cw, ch := w.savedW, w.savedH
+		if xpos != 0 || ypos != 0 {
+			x, y = xpos, ypos
+		}
+		if width > 0 {
+			cw = width
+		}
+		if height > 0 {
+			ch = height
+		}
+
+		// Adjust for non-client area.
+		rc := _RECT{0, 0, int32(cw), int32(ch)}
+		adjustWindowRectEx(&rc, w.savedStyle, w.savedExStyle, false)
+		setWindowPos(w.handle, _HWND_TOP,
+			x, y,
+			int(rc.Right-rc.Left), int(rc.Bottom-rc.Top),
+			_SWP_NOACTIVATE|_SWP_FRAMECHANGED,
+		)
+		showWindow(w.handle, _SW_SHOW)
+	}
+}
+
+// SetAttrib sets a window attribute at runtime.
+// Supported attributes: Decorated, Floating, Resizable.
+func (w *Window) SetAttrib(attrib Hint, value int) {
+	switch attrib {
+	case Decorated:
+		style   := getWindowLongW(w.handle, _GWL_STYLE)
+		exStyle := getWindowLongW(w.handle, _GWL_EXSTYLE)
+		if value != 0 {
+			style |= _WS_CAPTION | _WS_SYSMENU | _WS_MINIMIZEBOX
+		} else {
+			style &^= _WS_CAPTION | _WS_SYSMENU | _WS_MINIMIZEBOX | _WS_THICKFRAME | _WS_MAXIMIZEBOX
+		}
+		setWindowLongW(w.handle, _GWL_STYLE, style)
+		setWindowLongW(w.handle, _GWL_EXSTYLE, exStyle)
+		setWindowPos(w.handle, 0, 0, 0, 0, 0,
+			_SWP_NOMOVE|_SWP_NOSIZE|_SWP_NOZORDER|_SWP_NOACTIVATE|_SWP_FRAMECHANGED)
+
+	case Floating:
+		exStyle := getWindowLongW(w.handle, _GWL_EXSTYLE)
+		if value != 0 {
+			exStyle |= _WS_EX_TOPMOST
+		} else {
+			exStyle &^= _WS_EX_TOPMOST
+		}
+		setWindowLongW(w.handle, _GWL_EXSTYLE, exStyle)
+		var insertAfter uintptr
+		if value != 0 {
+			insertAfter = ^uintptr(0) // HWND_TOPMOST = -1
+		} else {
+			insertAfter = ^uintptr(1) // HWND_NOTOPMOST = -2
+		}
+		setWindowPos(w.handle, insertAfter, 0, 0, 0, 0,
+			_SWP_NOMOVE|_SWP_NOSIZE|_SWP_NOACTIVATE)
+
+	case Resizable:
+		style := getWindowLongW(w.handle, _GWL_STYLE)
+		if value != 0 {
+			style |= _WS_THICKFRAME | _WS_MAXIMIZEBOX
+		} else {
+			style &^= _WS_THICKFRAME | _WS_MAXIMIZEBOX
+		}
+		setWindowLongW(w.handle, _GWL_STYLE, style)
+		setWindowPos(w.handle, 0, 0, 0, 0, 0,
+			_SWP_NOMOVE|_SWP_NOSIZE|_SWP_NOZORDER|_SWP_NOACTIVATE|_SWP_FRAMECHANGED)
+	}
+}
+
+// SetIcon sets the window icon from a list of images of different sizes.
+// The image with the best size for ICON_BIG (~32×32) and ICON_SMALL (~16×16)
+// is chosen automatically. Pass nil to revert to the default application icon.
+func (w *Window) SetIcon(images []Image) {
+	if len(images) == 0 {
+		icon, _ := loadIconW(0, _IDI_APPLICATION)
+		sendMessageW(w.handle, _WM_SETICON, _ICON_BIG, icon)
+		sendMessageW(w.handle, _WM_SETICON, _ICON_SMALL, icon)
+		return
+	}
+	big   := pickIcon(images, 32)
+	small := pickIcon(images, 16)
+	hBig   := createHICON(big, true)
+	hSmall := createHICON(small, true)
+	if hBig != 0 {
+		sendMessageW(w.handle, _WM_SETICON, _ICON_BIG, hBig)
+	}
+	if hSmall != 0 {
+		sendMessageW(w.handle, _WM_SETICON, _ICON_SMALL, hSmall)
+	}
+}
+
+// SetCursor sets the cursor shape while the cursor is over the client area.
+// Pass nil to revert to the default arrow cursor.
+func (w *Window) SetCursor(cursor *Cursor) {
+	if cursor == nil {
+		w.cursor = 0
+		setSysCursor(gDefaultCursor)
+	} else {
+		w.cursor = cursor.handle
+		setSysCursor(cursor.handle)
+	}
+}
+
+// pickIcon returns the image whose size is closest to target.
+func pickIcon(images []Image, target int) Image {
+	best := images[0]
+	bestDiff := abs(images[0].Width - target)
+	for _, img := range images[1:] {
+		d := abs(img.Width - target)
+		if d < bestDiff {
+			best = img
+			bestDiff = d
+		}
+	}
+	return best
+}
+
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+// createHICON creates a Windows HICON (or HCURSOR when isIcon=false) from an
+// RGBA Image using a 32-bit DIB with alpha channel.
+func createHICON(img Image, isIcon bool) uintptr {
+	return createHICONCursor(img, 0, 0, isIcon)
+}
+
+func createHICONCursor(img Image, xhot, yhot int, isIcon bool) uintptr {
+	w, h := img.Width, img.Height
+	if w <= 0 || h <= 0 || len(img.Pixels) < w*h*4 {
+		return 0
+	}
+
+	// Create a 32-bit top-down DIB for the colour data.
+	bi := _BITMAPV5HEADER{
+		BV5Size:        uint32(unsafe.Sizeof(_BITMAPV5HEADER{})),
+		BV5Width:       int32(w),
+		BV5Height:      -int32(h), // negative = top-down
+		BV5Planes:      1,
+		BV5BitCount:    32,
+		BV5Compression: _BI_BITFIELDS,
+		BV5RedMask:     0x00FF0000,
+		BV5GreenMask:   0x0000FF00,
+		BV5BlueMask:    0x000000FF,
+		BV5AlphaMask:   0xFF000000,
+		BV5CSType:      _LCS_WINDOWS_COLOR_SPACE,
+	}
+
+	var bits unsafe.Pointer
+	hColor := createDIBSection(0, &bi, _DIB_RGB_COLORS, &bits)
+	if hColor == 0 || bits == nil {
+		return 0
+	}
+
+	// Copy pixels — source is RGBA; Windows DIB wants BGRA.
+	dst := unsafe.Slice((*byte)(bits), w*h*4)
+	src := img.Pixels
+	for i := 0; i < w*h; i++ {
+		dst[i*4+0] = src[i*4+2] // B
+		dst[i*4+1] = src[i*4+1] // G
+		dst[i*4+2] = src[i*4+0] // R
+		dst[i*4+3] = src[i*4+3] // A
+	}
+
+	// Create the 1bpp mask bitmap (all zeros → use colour data as-is).
+	maskLen := ((w + 31) / 32) * 4 * h
+	mask := make([]byte, maskLen)
+	hMask := createBitmap(int32(w), int32(h), 1, 1, unsafe.Pointer(&mask[0]))
+	if hMask == 0 {
+		deleteObject(hColor)
+		return 0
+	}
+
+	ii := _ICONINFO{
+		XHotspot: uint32(xhot),
+		YHotspot: uint32(yhot),
+		HbmMask:  hMask,
+		HbmColor: hColor,
+	}
+	if isIcon {
+		ii.FIcon = 1
+	}
+	hIcon := createIconIndirect(&ii)
+
+	// The icon/cursor has its own copies of the bitmaps; free the originals.
+	deleteObject(hMask)
+	deleteObject(hColor)
+	return hIcon
+}
+
 // ----------------------------------------------------------------------------
 // Input
 // ----------------------------------------------------------------------------
@@ -337,10 +638,10 @@ func (w *Window) SetCursorPos(x, y float64) {
 }
 
 // GetInputMode returns the current value of an input mode.
-// Only the Cursor mode is fully implemented; other modes return 0.
+// Only the CursorMode is fully implemented; other modes return 0.
 func (w *Window) GetInputMode(mode InputMode) int {
-	if mode == Cursor {
-		return int(w.cursorMode)
+	if mode == CursorMode {
+		return w.cursorMode
 	}
 	return 0
 }
@@ -349,18 +650,18 @@ func (w *Window) GetInputMode(mode InputMode) int {
 //
 // Supported modes:
 //
-//	Cursor → CursorNormal, CursorHidden, CursorDisabled
+//	CursorMode → CursorNormal, CursorHidden, CursorDisabled
 //
 // CursorDisabled hides the cursor AND clips it to the window client area,
 // which is the correct behaviour for first-person mouse-look.
 // CursorHidden hides the cursor without clipping.
 // CursorNormal restores the cursor to its default visible, unclipped state.
 func (w *Window) SetInputMode(mode InputMode, value int) {
-	if mode != Cursor {
+	if mode != CursorMode {
 		return // other modes not yet implemented
 	}
 	prev := w.cursorMode
-	next := CursorMode(value)
+	next := value
 	if prev == next {
 		return
 	}
@@ -624,6 +925,27 @@ func wndProc(hwnd uintptr, msg uint32, wParam, lParam uintptr) uintptr {
 	case _WM_DROPFILES:
 		handleDropFiles(w, wParam)
 		return 0
+
+	case _WM_GETMINMAXINFO:
+		mmi := (*_MINMAXINFO)(unsafe.Pointer(lParam))
+		w.applyMinMaxInfo(mmi)
+		// Do NOT return 0 here — let DefWindowProc also run so the system
+		// maximised/restored defaults are still applied as a baseline.
+
+	case _WM_SIZING:
+		rc := (*_RECT)(unsafe.Pointer(lParam))
+		w.enforceAspectRatio(rc, wParam)
+		return 1
+
+	case _WM_SETCURSOR:
+		if loword(lParam) == int16(_HTCLIENT) {
+			if w.cursor != 0 {
+				setSysCursor(w.cursor)
+			} else {
+				setSysCursor(gDefaultCursor)
+			}
+			return 1
+		}
 
 	case _WM_ERASEBKGND:
 		return 1 // prevent flicker

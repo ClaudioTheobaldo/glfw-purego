@@ -144,9 +144,16 @@ const (
 
 // Extended window styles
 const (
-	_WS_EX_APPWINDOW  = uintptr(0x00040000)
-	_WS_EX_TOPMOST    = uintptr(0x00000008)
+	_WS_EX_APPWINDOW   = uintptr(0x00040000)
+	_WS_EX_TOPMOST     = uintptr(0x00000008)
 	_WS_EX_ACCEPTFILES = uintptr(0x00000010)
+	_WS_EX_LAYERED     = uintptr(0x00080000)
+)
+
+// SetLayeredWindowAttributes flags
+const (
+	_LWA_ALPHA    = uintptr(0x2)
+	_LWA_COLORKEY = uintptr(0x1)
 )
 
 // ----------------------------------------------------------------------------
@@ -404,3 +411,141 @@ func getWheelDelta(wp uintptr) float64 {
 	return float64(int16(uint16(wp>>16))) / 120.0
 }
 func getXButton(wp uintptr) uint16 { return uint16(wp >> 16) }
+
+// ----------------------------------------------------------------------------
+// BITMAPV5HEADER for cursor and icon creation with alpha channel.
+// ----------------------------------------------------------------------------
+
+type _BITMAPV5HEADER struct {
+	BV5Size          uint32
+	BV5Width         int32
+	BV5Height        int32
+	BV5Planes        uint16
+	BV5BitCount      uint16
+	BV5Compression   uint32
+	BV5SizeImage     uint32
+	BV5XPelsPerMeter int32
+	BV5YPelsPerMeter int32
+	BV5ClrUsed       uint32
+	BV5ClrImportant  uint32
+	BV5RedMask       uint32
+	BV5GreenMask     uint32
+	BV5BlueMask      uint32
+	BV5AlphaMask     uint32
+	BV5CSType        uint32
+	BV5Endpoints     [36]byte // CIEXYZTRIPLE
+	BV5GammaRed      uint32
+	BV5GammaGreen    uint32
+	BV5GammaBlue     uint32
+	BV5Intent        uint32
+	BV5ProfileData   uint32
+	BV5ProfileSize   uint32
+	BV5Reserved      uint32
+}
+
+// _ICONINFO is used with CreateIconIndirect to create cursors and icons.
+type _ICONINFO struct {
+	FIcon    int32  // 1 = icon, 0 = cursor
+	XHotspot uint32
+	YHotspot uint32
+	HbmMask  uintptr
+	HbmColor uintptr
+}
+
+// ----------------------------------------------------------------------------
+// ChangeDisplaySettingsExW flags
+// ----------------------------------------------------------------------------
+
+const (
+	_CDS_FULLSCREEN         = uintptr(0x00000004)
+	_DISP_CHANGE_SUCCESSFUL = int32(0)
+)
+
+// DEVMODEW dmFields bits
+const (
+	_DM_BITSPERPEL       = uint32(0x00040000)
+	_DM_PELSWIDTH        = uint32(0x00080000)
+	_DM_PELSHEIGHT       = uint32(0x00100000)
+	_DM_DISPLAYFREQUENCY = uint32(0x00400000)
+)
+
+// Bitmap compression
+const _BI_BITFIELDS = uint32(3)
+const _LCS_WINDOWS_COLOR_SPACE = uint32(0x57696E20)
+const _DIB_RGB_COLORS = uint32(0)
+
+// WM_SETICON wParam (supplement — _WM_SETICON message already defined above)
+const (
+	_ICON_SMALL = uintptr(0)
+	_ICON_BIG   = uintptr(1)
+)
+
+// WM_SETCURSOR
+const (
+	_WM_SETCURSOR = uint32(0x0020)
+	_HTCLIENT     = uintptr(1)
+)
+
+// Additional IDC cursor shapes
+const (
+	_IDC_IBEAM  = uintptr(32513)
+	_IDC_CROSS  = uintptr(32515)
+	_IDC_HAND   = uintptr(32649)
+	_IDC_SIZEWE = uintptr(32644)
+	_IDC_SIZENS = uintptr(32645)
+)
+
+// WM_GETMINMAXINFO / WM_SIZING
+const (
+	_WM_GETMINMAXINFO = uint32(0x0024)
+	_WM_SIZING        = uint32(0x0214)
+
+	// wParam values for WM_SIZING
+	_WMSZ_LEFT        = 1
+	_WMSZ_RIGHT       = 2
+	_WMSZ_TOP         = 3
+	_WMSZ_TOPLEFT     = 4
+	_WMSZ_TOPRIGHT    = 5
+	_WMSZ_BOTTOM      = 6
+	_WMSZ_BOTTOMLEFT  = 7
+	_WMSZ_BOTTOMRIGHT = 8
+)
+
+// MINMAXINFO — lParam of WM_GETMINMAXINFO
+type _MINMAXINFO struct {
+	PtReserved     _POINT
+	PtMaxSize      _POINT
+	PtMaxPosition  _POINT
+	PtMinTrackSize _POINT
+	PtMaxTrackSize _POINT
+}
+
+// FlashWindowEx constants
+const (
+	_FLASHW_STOP      = uint32(0)
+	_FLASHW_CAPTION   = uint32(0x00000001)
+	_FLASHW_TRAY      = uint32(0x00000002)
+	_FLASHW_ALL       = uint32(0x00000003)
+	_FLASHW_TIMER     = uint32(0x00000004)
+	_FLASHW_TIMERNOEDIT = uint32(0x0000000C)
+)
+
+// FLASHWINFO — parameter for FlashWindowEx
+type _FLASHWINFO struct {
+	CbSize    uint32
+	Hwnd      uintptr
+	DwFlags   uint32
+	UCount    uint32
+	DwTimeout uint32
+}
+
+// MapVirtualKey mapping types
+const (
+	_MAPVK_VK_TO_VSC    = uint32(0)
+	_MAPVK_VSC_TO_VK    = uint32(1)
+	_MAPVK_VK_TO_CHAR   = uint32(2)
+	_MAPVK_VSC_TO_VK_EX = uint32(3)
+)
+
+// Extended key flag for GetKeyNameTextW
+const _KF_EXTENDED = uint32(0x0100)

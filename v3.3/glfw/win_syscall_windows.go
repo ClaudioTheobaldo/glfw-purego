@@ -75,6 +75,16 @@ var (
 	procDragQueryFileW       = modShell32.NewProc("DragQueryFileW")
 	procDragFinish           = modShell32.NewProc("DragFinish")
 	procMsgWaitForMultipleObjectsEx = modUser32.NewProc("MsgWaitForMultipleObjectsEx")
+	procChangeDisplaySettingsExW   = modUser32.NewProc("ChangeDisplaySettingsExW")
+	procCreateIconIndirect         = modUser32.NewProc("CreateIconIndirect")
+	procDestroyIcon                = modUser32.NewProc("DestroyIcon")
+	procSendMessageW               = modUser32.NewProc("SendMessageW")
+	procPostMessageW               = modUser32.NewProc("PostMessageW")
+	procSetLayeredWindowAttributes = modUser32.NewProc("SetLayeredWindowAttributes")
+	procGetLayeredWindowAttributes = modUser32.NewProc("GetLayeredWindowAttributes")
+	procFlashWindowEx              = modUser32.NewProc("FlashWindowEx")
+	procMapVirtualKeyW             = modUser32.NewProc("MapVirtualKeyW")
+	procGetKeyNameTextW            = modUser32.NewProc("GetKeyNameTextW")
 )
 
 // ----------------------------------------------------------------------------
@@ -86,6 +96,9 @@ var (
 	procDescribePixelFormat = modGdi32.NewProc("DescribePixelFormat")
 	procSetPixelFormat      = modGdi32.NewProc("SetPixelFormat")
 	procSwapBuffers         = modGdi32.NewProc("SwapBuffers")
+	procCreateDIBSection    = modGdi32.NewProc("CreateDIBSection")
+	procCreateBitmap        = modGdi32.NewProc("CreateBitmap")
+	procDeleteObject        = modGdi32.NewProc("DeleteObject")
 )
 
 // ----------------------------------------------------------------------------
@@ -271,8 +284,6 @@ func getKeyState(vk uint32) uint16 {
 	r, _, _ := procGetKeyState.Call(uintptr(vk))
 	return uint16(r)
 }
-
-var procMapVirtualKeyW = modUser32.NewProc("MapVirtualKeyW")
 
 func screenToClient(hwnd uintptr, pt *_POINT) {
 	procScreenToClient.Call(hwnd, uintptr(unsafe.Pointer(pt)))
@@ -518,4 +529,114 @@ func wglGetProcAddressStr(name string) uintptr {
 	}
 	r, _, _ := procWglGetProcAddress.Call(uintptr(unsafe.Pointer(n)))
 	return r
+}
+
+// ----------------------------------------------------------------------------
+// New typed wrappers — user32 (display, icon, cursor, messaging)
+// ----------------------------------------------------------------------------
+
+func changeDisplaySettingsExW(deviceName *uint16, devMode *_DEVMODEW, flags uintptr) int32 {
+	r, _, _ := procChangeDisplaySettingsExW.Call(
+		uintptr(unsafe.Pointer(deviceName)),
+		uintptr(unsafe.Pointer(devMode)),
+		0, flags, 0,
+	)
+	return int32(r)
+}
+
+func createIconIndirect(iconInfo *_ICONINFO) uintptr {
+	r, _, _ := procCreateIconIndirect.Call(uintptr(unsafe.Pointer(iconInfo)))
+	return r
+}
+
+func destroyIcon(hIcon uintptr) {
+	procDestroyIcon.Call(hIcon)
+}
+
+func setSysCursor(hCursor uintptr) {
+	procSetCursor.Call(hCursor)
+}
+
+func sendMessageW(hwnd uintptr, msg uint32, wParam, lParam uintptr) uintptr {
+	r, _, _ := procSendMessageW.Call(hwnd, uintptr(msg), wParam, lParam)
+	return r
+}
+
+// ----------------------------------------------------------------------------
+// New typed wrappers — gdi32 (DIB, bitmap)
+// ----------------------------------------------------------------------------
+
+func createDIBSection(hdc uintptr, bmi *_BITMAPV5HEADER, usage uint32, ppvBits *unsafe.Pointer) uintptr {
+	r, _, _ := procCreateDIBSection.Call(
+		hdc,
+		uintptr(unsafe.Pointer(bmi)),
+		uintptr(usage),
+		uintptr(unsafe.Pointer(ppvBits)),
+		0, 0,
+	)
+	return r
+}
+
+func createBitmap(width, height int32, planes, bitCount uint32, bits unsafe.Pointer) uintptr {
+	r, _, _ := procCreateBitmap.Call(
+		uintptr(width), uintptr(height),
+		uintptr(planes), uintptr(bitCount),
+		uintptr(bits),
+	)
+	return r
+}
+
+func deleteObject(obj uintptr) {
+	procDeleteObject.Call(obj)
+}
+
+// ----------------------------------------------------------------------------
+// Layered window (opacity)
+// ----------------------------------------------------------------------------
+
+func setLayeredWindowAttributes(hwnd uintptr, crKey uint32, bAlpha byte, dwFlags uintptr) bool {
+	r, _, _ := procSetLayeredWindowAttributes.Call(hwnd, uintptr(crKey), uintptr(bAlpha), dwFlags)
+	return r != 0
+}
+
+func getLayeredWindowAttributes(hwnd uintptr, crKey *uint32, bAlpha *byte, dwFlags *uint32) bool {
+	r, _, _ := procGetLayeredWindowAttributes.Call(
+		hwnd,
+		uintptr(unsafe.Pointer(crKey)),
+		uintptr(unsafe.Pointer(bAlpha)),
+		uintptr(unsafe.Pointer(dwFlags)),
+	)
+	return r != 0
+}
+
+// ----------------------------------------------------------------------------
+// FlashWindowEx (RequestAttention)
+// ----------------------------------------------------------------------------
+
+func flashWindowEx(fwi *_FLASHWINFO) bool {
+	r, _, _ := procFlashWindowEx.Call(uintptr(unsafe.Pointer(fwi)))
+	return r != 0
+}
+
+// ----------------------------------------------------------------------------
+// PostMessage (PostEmptyEvent)
+// ----------------------------------------------------------------------------
+
+func postMessageW(hwnd uintptr, msg uint32, wParam, lParam uintptr) bool {
+	r, _, _ := procPostMessageW.Call(hwnd, uintptr(msg), wParam, lParam)
+	return r != 0
+}
+
+// ----------------------------------------------------------------------------
+// Key name / scancode
+// ----------------------------------------------------------------------------
+
+func mapVirtualKeyW(uCode, uMapType uint32) uint32 {
+	r, _, _ := procMapVirtualKeyW.Call(uintptr(uCode), uintptr(uMapType))
+	return uint32(r)
+}
+
+func getKeyNameTextW(lParam uintptr, buf []uint16) int {
+	r, _, _ := procGetKeyNameTextW.Call(lParam, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
+	return int(r)
 }

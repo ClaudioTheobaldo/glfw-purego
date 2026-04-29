@@ -15,8 +15,8 @@ type MouseButton int
 // InputMode is an input configuration mode settable on a window.
 type InputMode int
 
-// CursorMode controls the cursor visibility and capture state.
-type CursorMode int
+// cursorModeValue is an internal alias for the cursor mode value type.
+// The public constants CursorNormal, CursorHidden, CursorDisabled are untyped ints.
 
 // Hint is a window or context creation hint.
 type Hint int
@@ -97,17 +97,16 @@ const (
 	MouseButtonLast               = MouseButton8
 
 	// Input modes — the selector passed to SetInputMode / GetInputMode.
-	// Named "Cursor" (not "CursorMode") to avoid colliding with type CursorMode.
-	Cursor             InputMode = 0x00033001
+	CursorMode         InputMode = 0x00033001
 	StickyKeys         InputMode = 0x00033002
 	StickyMouseButtons InputMode = 0x00033003
 	LockKeyMods        InputMode = 0x00033004
 	RawMouseMotion     InputMode = 0x00033005
 
-	// Cursor modes
-	CursorNormal   CursorMode = 0x00034001
-	CursorHidden   CursorMode = 0x00034002
-	CursorDisabled CursorMode = 0x00034003
+	// Cursor modes (values passed as the second argument to SetInputMode(CursorMode, ...))
+	CursorNormal   = 0x00034001
+	CursorHidden   = 0x00034002
+	CursorDisabled = 0x00034003
 
 	// Window / context hints
 	Focused                Hint = 0x00020001
@@ -355,3 +354,21 @@ const (
 
 	KeyLast = KeyMenu
 )
+
+// StandardCursorShape identifies a built-in system cursor shape.
+type StandardCursorShape int
+
+const (
+	ArrowCursor      StandardCursorShape = 0x00036001
+	IBeamCursor      StandardCursorShape = 0x00036002
+	CrosshairCursor  StandardCursorShape = 0x00036003
+	HandCursor       StandardCursorShape = 0x00036004
+	HResizeCursor    StandardCursorShape = 0x00036005
+	VResizeCursor    StandardCursorShape = 0x00036006
+)
+
+// Cursor is an opaque cursor object created by CreateCursor or CreateStandardCursor.
+type Cursor struct {
+	handle uintptr // platform-specific handle (HCURSOR on Windows)
+	system bool    // true = system cursor, must not be destroyed
+}
