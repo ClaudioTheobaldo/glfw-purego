@@ -973,6 +973,15 @@ func wndProc(hwnd uintptr, msg uint32, wParam, lParam uintptr) uintptr {
 
 	case _WM_PAINT:
 		if w.fRefreshHolder != nil { w.fRefreshHolder(w) }
+
+	case _WM_DISPLAYCHANGE:
+		// A monitor was connected or disconnected; fire the monitor callback.
+		if winMonitorCb != nil {
+			newMonitors, _ := GetMonitors()
+			diffAndFireMonitorCallbacks(winCachedMonitors, newMonitors, winMonitorCb)
+			winCachedMonitors = newMonitors
+		}
+		return 0
 	}
 
 	return defWindowProcW(hwnd, msg, wParam, lParam)

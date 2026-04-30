@@ -2,7 +2,10 @@
 
 package glfw
 
-import "unsafe"
+import (
+	"syscall"
+	"unsafe"
+)
 
 // PollEvents processes all pending OS events without blocking.
 func PollEvents() {
@@ -16,25 +19,94 @@ func PollEvents() {
 	}
 }
 
-// WaitEvents blocks until at least one event is queued, then processes it.
+// WaitEvents blocks until at least one X11 event or a PostEmptyEvent wake-up
+// arrives, then processes all pending events.
 func WaitEvents() {
 	if x11Display == 0 {
 		return
 	}
-	var ev _XEvent
-	xNextEvent(x11Display, uintptr(unsafe.Pointer(&ev)))
-	handleX11Event(&ev)
-	PollEvents() // drain remaining
+	// Fast path: events already queued.
+	if xPending(x11Display) > 0 {
+		PollEvents()
+		return
+	}
+	xFd := int(xConnectionNumber(x11Display))
+	var rfds syscall.FdSet
+	rfds.Bits[xFd/64] |= int64(1) << (uint(xFd) % 64)
+	maxFd := xFd
+	if x11PostPipeRead >= 0 {
+		rfds.Bits[x11PostPipeRead/64] |= int64(1) << (uint(x11PostPipeRead) % 64)
+		if x11PostPipeRead > maxFd {
+			maxFd = x11PostPipeRead
+		}
+	}
+	syscall.Select(maxFd+1, &rfds, nil, nil, nil) //nolint:errcheck
+	drainPostPipe(&rfds)
+	PollEvents()
 }
 
 // WaitEventsTimeout blocks for at most timeout seconds, then processes events.
-// For simplicity this delegates to WaitEvents (a proper timeout needs select+fd).
 func WaitEventsTimeout(timeout float64) {
-	WaitEvents()
+	if x11Display == 0 {
+		return
+	}
+	if xPending(x11Display) > 0 {
+		PollEvents()
+		return
+	}
+	xFd := int(xConnectionNumber(x11Display))
+	var rfds syscall.FdSet
+	rfds.Bits[xFd/64] |= int64(1) << (uint(xFd) % 64)
+	maxFd := xFd
+	if x11PostPipeRead >= 0 {
+		rfds.Bits[x11PostPipeRead/64] |= int64(1) << (uint(x11PostPipeRead) % 64)
+		if x11PostPipeRead > maxFd {
+			maxFd = x11PostPipeRead
+		}
+	}
+	sec := int64(timeout)
+	usec := int64((timeout - float64(sec)) * 1e6)
+	tv := syscall.Timeval{Sec: sec, Usec: usec}
+	syscall.Select(maxFd+1, &rfds, nil, nil, &tv) //nolint:errcheck
+	drainPostPipe(&rfds)
+	PollEvents()
+}
+
+// PostEmptyEvent wakes up a WaitEvents or WaitEventsTimeout call on any thread.
+func PostEmptyEvent() {
+	if x11PostPipeWrite >= 0 {
+		syscall.Write(x11PostPipeWrite, []byte{0}) //nolint:errcheck
+	}
+}
+
+// drainPostPipe reads one byte from the self-pipe if it was selected.
+func drainPostPipe(rfds *syscall.FdSet) {
+	if x11PostPipeRead < 0 {
+		return
+	}
+	if rfds.Bits[x11PostPipeRead/64]&(int64(1)<<(uint(x11PostPipeRead)%64)) != 0 {
+		var buf [1]byte
+		syscall.Read(x11PostPipeRead, buf[:]) //nolint:errcheck
+	}
 }
 
 // handleX11Event dispatches a single X11 event to the appropriate window.
 func handleX11Event(ev *_XEvent) {
+	// Handle clipboard / selection events before the per-window lookup because
+	// these are directed at the clipboard helper window which is not in
+	// windowByHandle.
+	switch ev.eventType() {
+	case _SelectionRequest:
+		handleSelectionRequest(ev)
+		return
+	case _SelectionClear:
+		// We lost clipboard ownership; discard our cached text.
+		clipboardMu.Lock()
+		clipboardText = ""
+		clipboardMu.Unlock()
+		return
+	}
+
 	xwin := ev.window()
 	v, ok := windowByHandle.Load(uintptr(xwin))
 	if !ok {
@@ -104,5 +176,15 @@ func handleX11Event(ev *_XEvent) {
 		}
 	case _DestroyNotify:
 		windowByHandle.Delete(uintptr(xwin))
+	}
+
+	// XRandR RRNotify — fired when a monitor is connected or disconnected.
+	// xrandrEventBase+1 = RROutputChangeNotify (from XRandR extension base).
+	if xrandrEventBase != 0 && int32(ev.eventType()) == xrandrEventBase+1 {
+		if linuxMonitorCb != nil {
+			newMonitors, _ := GetMonitors()
+			diffAndFireMonitorCallbacks(linuxCachedMonitors, newMonitors, linuxMonitorCb)
+			linuxCachedMonitors = newMonitors
+		}
 	}
 }

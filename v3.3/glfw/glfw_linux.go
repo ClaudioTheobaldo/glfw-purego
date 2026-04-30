@@ -4,47 +4,105 @@ package glfw
 
 import (
 	"runtime"
+	"syscall"
 	"time"
+	"unsafe"
 )
 
 // ----------------------------------------------------------------------------
-// Monitor type — minimal stub for Linux
+// Monitor type — real implementation backed by XRandR (linux_x11_xrandr.go)
 // ----------------------------------------------------------------------------
 
 // Monitor represents a connected display.
 type Monitor struct {
-	name string
+	name                string
+	x, y                int
+	widthPx, heightPx   int
+	widthMM, heightMM   int
+	modes               []*VidMode
+	currentMode         *VidMode
+	crtc, output        uint64 // XRandR RRCrtc / RROutput IDs
 }
 
-// GetName returns the monitor's device name.
+// GetName returns the monitor's display name as reported by XRandR.
 func (m *Monitor) GetName() string { return m.name }
 
 // GetPos returns the monitor's position in virtual screen coordinates.
-func (m *Monitor) GetPos() (x, y int) { return 0, 0 }
+func (m *Monitor) GetPos() (x, y int) { return m.x, m.y }
 
-// GetWorkarea returns the monitor's work area.
-func (m *Monitor) GetWorkarea() (x, y, width, height int) { return 0, 0, 0, 0 }
+// GetWorkarea returns the monitor's usable area.
+// On basic X11 we return the full monitor bounds (no taskbar subtraction).
+func (m *Monitor) GetWorkarea() (x, y, width, height int) {
+	return m.x, m.y, m.widthPx, m.heightPx
+}
 
 // GetPhysicalSize returns the monitor's physical dimensions in millimetres.
-func (m *Monitor) GetPhysicalSize() (widthMM, heightMM int) { return 0, 0 }
+func (m *Monitor) GetPhysicalSize() (widthMM, heightMM int) {
+	return m.widthMM, m.heightMM
+}
 
-// GetContentScale returns the DPI scale factors.
-func (m *Monitor) GetContentScale() (x, y float32) { return 1, 1 }
+// GetContentScale returns the DPI scale factors relative to 96 DPI.
+func (m *Monitor) GetContentScale() (x, y float32) {
+	if m.widthPx == 0 || m.widthMM == 0 {
+		return 1, 1
+	}
+	const refDPI = 96.0
+	dpiX := float32(m.widthPx) / (float32(m.widthMM) / 25.4)
+	dpiY := float32(m.heightPx) / (float32(m.heightMM) / 25.4)
+	return dpiX / refDPI, dpiY / refDPI
+}
 
 // GetVideoMode returns the monitor's current video mode.
-func (m *Monitor) GetVideoMode() *VidMode { return nil }
+func (m *Monitor) GetVideoMode() *VidMode { return m.currentMode }
 
 // GetVideoModes returns all available video modes for this monitor.
-func (m *Monitor) GetVideoModes() []*VidMode { return nil }
+func (m *Monitor) GetVideoModes() []*VidMode { return m.modes }
 
-// GetMonitors returns all currently connected monitors.
-func GetMonitors() ([]*Monitor, error) { return nil, nil }
+// ----------------------------------------------------------------------------
+// SetMonitorCallback — monitor connect/disconnect via XRandR RRNotify
+// ----------------------------------------------------------------------------
 
-// GetPrimaryMonitor returns the primary monitor.
-func GetPrimaryMonitor() *Monitor { return nil }
+var (
+	linuxMonitorCb      func(*Monitor, PeripheralEvent)
+	linuxCachedMonitors []*Monitor
+)
+
+const _RROutputChangeNotifyMask = int32(1)
+
+// diffAndFireMonitorCallbacks compares two monitor lists by name and fires
+// Connected/Disconnected for monitors that appeared or disappeared.
+func diffAndFireMonitorCallbacks(old, cur []*Monitor, cb func(*Monitor, PeripheralEvent)) {
+	oldSet := make(map[string]*Monitor, len(old))
+	for _, m := range old {
+		oldSet[m.name] = m
+	}
+	curSet := make(map[string]*Monitor, len(cur))
+	for _, m := range cur {
+		curSet[m.name] = m
+	}
+	for _, m := range cur {
+		if _, existed := oldSet[m.name]; !existed {
+			cb(m, Connected)
+		}
+	}
+	for _, m := range old {
+		if _, exists := curSet[m.name]; !exists {
+			cb(m, Disconnected)
+		}
+	}
+}
 
 // SetMonitorCallback registers a callback for monitor connect/disconnect events.
-func SetMonitorCallback(cb func(monitor *Monitor, event PeripheralEvent)) {}
+// Requires XRandR; silently ignored if libXrandr is not available.
+func SetMonitorCallback(cb func(monitor *Monitor, event PeripheralEvent)) {
+	linuxMonitorCb = cb
+	if cb != nil && x11Display != 0 {
+		if loadXrandr() == nil {
+			xrrSelectInput(x11Display, x11Root, _RROutputChangeNotifyMask)
+		}
+		linuxCachedMonitors, _ = GetMonitors()
+	}
+}
 
 // ----------------------------------------------------------------------------
 // Init / Terminate / Time
@@ -67,13 +125,26 @@ func Init() error {
 // Terminate destroys all windows and closes the X11 display.
 func Terminate() {
 	windowByHandle.Range(func(k, v any) bool {
-		w := v.(*Window)
-		w.Destroy()
+		v.(*Window).Destroy()
 		return true
 	})
+	// Free shared invisible cursor before closing the display.
+	if x11InvisibleCursor != 0 && x11Display != 0 {
+		xFreeCursor(x11Display, x11InvisibleCursor)
+		x11InvisibleCursor = 0
+	}
 	if x11Display != 0 {
 		xCloseDisplay(x11Display)
 		x11Display = 0
+	}
+	// Close self-pipe after the display so no racing WaitEvents can write to it.
+	if x11PostPipeRead >= 0 {
+		syscall.Close(x11PostPipeRead)
+		x11PostPipeRead = -1
+	}
+	if x11PostPipeWrite >= 0 {
+		syscall.Close(x11PostPipeWrite)
+		x11PostPipeWrite = -1
 	}
 }
 
@@ -88,35 +159,121 @@ func SetTime(t float64) {
 }
 
 // ----------------------------------------------------------------------------
-// Stubs — still not implemented on Linux
+// _MotifWMHints — used by SetAttrib(Decorated, …)
+// Each field is a C long (8 bytes on 64-bit Linux); 5 fields = 40 bytes total.
+// ----------------------------------------------------------------------------
+
+type _MotifWMHints struct {
+	Flags       uint64
+	Functions   uint64
+	Decorations uint64
+	InputMode   int64
+	Status      uint64
+}
+
+const _MWM_HINTS_DECORATIONS = uint64(2)
+
+// ----------------------------------------------------------------------------
+// Window attribute / fullscreen / icon
 // ----------------------------------------------------------------------------
 
 // SetMonitor switches the window between fullscreen and windowed mode.
-// Linux: not yet implemented.
-func (w *Window) SetMonitor(monitor *Monitor, xpos, ypos, width, height, refreshRate int) {}
+func (w *Window) SetMonitor(monitor *Monitor, xpos, ypos, width, height, refreshRate int) {
+	if x11Display == 0 || w.handle == 0 {
+		return
+	}
+	if monitor != nil {
+		// Save windowed state if not already fullscreen
+		if w.fsMonitor == nil {
+			var wa _XWindowAttributes
+			xGetWindowAttributes(x11Display, uint64(w.handle), uintptr(unsafe.Pointer(&wa)))
+			w.savedX = int(wa.X)
+			w.savedY = int(wa.Y)
+			w.savedW = int(wa.Width)
+			w.savedH = int(wa.Height)
+		}
+		w.fsMonitor = monitor
+		// Prefer the monitor's real geometry when available.
+		if monitor.widthPx > 0 {
+			xpos, ypos = monitor.x, monitor.y
+			width, height = monitor.widthPx, monitor.heightPx
+		}
+		// Move/resize to requested geometry first, then request fullscreen state
+		xMoveResizeWindow(x11Display, uint64(w.handle), int32(xpos), int32(ypos), uint32(width), uint32(height))
+		w.sendNETWMState(_NET_WM_STATE_ADD, atomNETWMStateFull, 0)
+	} else {
+		// Exit fullscreen
+		w.fsMonitor = nil
+		w.sendNETWMState(_NET_WM_STATE_REMOVE, atomNETWMStateFull, 0)
+		xMoveResizeWindow(x11Display, uint64(w.handle), int32(w.savedX), int32(w.savedY), uint32(w.savedW), uint32(w.savedH))
+	}
+	xFlush(x11Display)
+}
 
 // SetAttrib sets a window attribute at runtime.
-// Linux: not yet implemented.
-func (w *Window) SetAttrib(attrib Hint, value int) {}
+func (w *Window) SetAttrib(attrib Hint, value int) {
+	if x11Display == 0 || w.handle == 0 {
+		return
+	}
+	switch attrib {
+	case Decorated:
+		var hints _MotifWMHints
+		hints.Flags = _MWM_HINTS_DECORATIONS
+		if value != 0 {
+			hints.Decorations = 1
+		}
+		// type = atomMOTIFWMHints (self-typed), format=32 (C long = 8 bytes), 5 longs
+		xChangeProperty(x11Display, uint64(w.handle),
+			atomMOTIFWMHints, atomMOTIFWMHints,
+			32, 0,
+			uintptr(unsafe.Pointer(&hints)),
+			5)
+	case Floating:
+		if value != 0 {
+			w.sendNETWMState(_NET_WM_STATE_ADD, atomNETWMStateAbove, 0)
+		} else {
+			w.sendNETWMState(_NET_WM_STATE_REMOVE, atomNETWMStateAbove, 0)
+		}
+	}
+	xFlush(x11Display)
+}
 
-// SetIcon sets the window icon.
-// Linux: not yet implemented.
-func (w *Window) SetIcon(images []Image) {}
+// SetIcon sets the window icon from a slice of candidate images.
+// Pass nil or an empty slice to remove the icon.
+func (w *Window) SetIcon(images []Image) {
+	if x11Display == 0 || w.handle == 0 {
+		return
+	}
+	if len(images) == 0 {
+		xDeleteProperty(x11Display, uint64(w.handle), atomNETWMIcon)
+		xFlush(x11Display)
+		return
+	}
 
-// SetCursor sets the cursor shape for this window.
-// Linux: not yet implemented.
-func (w *Window) SetCursor(cursor *Cursor) {}
+	// Build CARDINAL array: for each image [ width, height, ARGB pixels… ]
+	// On 64-bit Linux, format=32 ⇒ each element is an 8-byte C long.
+	var data []uint64
+	for i := range images {
+		img := &images[i]
+		data = append(data, uint64(img.Width), uint64(img.Height))
+		for j := 0; j < img.Width*img.Height; j++ {
+			r := uint64(img.Pixels[j*4+0])
+			g := uint64(img.Pixels[j*4+1])
+			b := uint64(img.Pixels[j*4+2])
+			a := uint64(img.Pixels[j*4+3])
+			data = append(data, (a<<24)|(r<<16)|(g<<8)|b)
+		}
+	}
 
-// CreateCursor creates a custom cursor.
-// Linux: returns nil (not yet implemented).
-func CreateCursor(image *Image, xhot, yhot int) (*Cursor, error) { return nil, nil }
-
-// CreateStandardCursor returns a standard system cursor.
-// Linux: returns nil (not yet implemented).
-func CreateStandardCursor(shape StandardCursorShape) (*Cursor, error) { return nil, nil }
-
-// DestroyCursor frees a cursor object.
-func DestroyCursor(cursor *Cursor) {}
+	const xaCARDINAL = uint64(6)
+	xChangeProperty(x11Display, uint64(w.handle),
+		atomNETWMIcon, xaCARDINAL,
+		32, 0,
+		uintptr(unsafe.Pointer(&data[0])),
+		int32(len(data)))
+	runtime.KeepAlive(data)
+	xFlush(x11Display)
+}
 
 // JoystickPresent returns whether a joystick is connected.
 func JoystickPresent(joy Joystick) bool { return false }
@@ -155,23 +312,106 @@ func SetJoystickCallback(cb func(joy Joystick, event PeripheralEvent)) {}
 // New APIs — Linux stubs
 // ----------------------------------------------------------------------------
 
-// SetSizeLimits sets minimum/maximum window dimensions. Linux: not yet implemented.
-func (w *Window) SetSizeLimits(minWidth, minHeight, maxWidth, maxHeight int) {}
+// applyWMNormalHints pushes the window's size/aspect constraints to the WM
+// via XSetWMNormalHints.  Call whenever minW/maxW/aspectNum change.
+func (w *Window) applyWMNormalHints() {
+	if x11Display == 0 || w.handle == 0 {
+		return
+	}
+	var hints _XSizeHints
+	if w.minW > 0 || w.minH > 0 {
+		hints.Flags |= _PMinSize
+		hints.MinWidth = int32(w.minW)
+		hints.MinHeight = int32(w.minH)
+	}
+	if w.maxW > 0 || w.maxH > 0 {
+		hints.Flags |= _PMaxSize
+		hints.MaxWidth = int32(w.maxW)
+		hints.MaxHeight = int32(w.maxH)
+	}
+	if w.aspectNum > 0 && w.aspectDen > 0 {
+		hints.Flags |= _PAspect
+		hints.MinAspX = int32(w.aspectNum)
+		hints.MinAspY = int32(w.aspectDen)
+		hints.MaxAspX = int32(w.aspectNum)
+		hints.MaxAspY = int32(w.aspectDen)
+	}
+	if hints.Flags == 0 {
+		return
+	}
+	xSetWMNormalHints(x11Display, uint64(w.handle), uintptr(unsafe.Pointer(&hints)))
+	xFlush(x11Display)
+}
 
-// SetAspectRatio locks the resize aspect ratio. Linux: not yet implemented.
-func (w *Window) SetAspectRatio(numer, denom int) {}
+// SetSizeLimits sets minimum/maximum window dimensions.
+func (w *Window) SetSizeLimits(minWidth, minHeight, maxWidth, maxHeight int) {
+	w.minW, w.minH, w.maxW, w.maxH = minWidth, minHeight, maxWidth, maxHeight
+	w.applyWMNormalHints()
+}
 
-// GetOpacity returns the window opacity (always 1 on Linux stub).
-func (w *Window) GetOpacity() float32 { return 1.0 }
+// SetAspectRatio locks the resize aspect ratio (numer:denom). Pass 0,0 to clear.
+func (w *Window) SetAspectRatio(numer, denom int) {
+	w.aspectNum, w.aspectDen = numer, denom
+	w.applyWMNormalHints()
+}
 
-// SetOpacity sets the window opacity. Linux: not yet implemented.
-func (w *Window) SetOpacity(opacity float32) {}
+const _netWMWindowOpacityMax = uint64(0xFFFFFFFF)
 
-// RequestAttention requests user attention. Linux: not yet implemented.
-func (w *Window) RequestAttention() {}
+// GetOpacity returns the window opacity in the range [0, 1].
+// Reads _NET_WM_WINDOW_OPACITY from the window property.
+func (w *Window) GetOpacity() float32 {
+	if x11Display == 0 || w.handle == 0 {
+		return 1.0
+	}
+	var actualType uint64
+	var actualFormat int32
+	var nItems, bytesAfter uint64
+	var propPtr uintptr
+	ret := xGetWindowProperty(x11Display, uint64(w.handle),
+		atomNETWMWindowOpacity,
+		0, 1, 0,
+		6, // XA_CARDINAL
+		uintptr(unsafe.Pointer(&actualType)),
+		uintptr(unsafe.Pointer(&actualFormat)),
+		uintptr(unsafe.Pointer(&nItems)),
+		uintptr(unsafe.Pointer(&bytesAfter)),
+		uintptr(unsafe.Pointer(&propPtr)))
+	if ret != 0 || propPtr == 0 || nItems < 1 {
+		return 1.0
+	}
+	val := *(*uint64)(unsafe.Pointer(propPtr))
+	xFree(propPtr)
+	return float32(val) / float32(_netWMWindowOpacityMax)
+}
 
-// PostEmptyEvent wakes up a blocked WaitEvents. Linux: not yet implemented.
-func PostEmptyEvent() {}
+// SetOpacity sets the window opacity. A value of 1.0 removes the property
+// (fully opaque); values < 1.0 set _NET_WM_WINDOW_OPACITY.
+func (w *Window) SetOpacity(opacity float32) {
+	if x11Display == 0 || w.handle == 0 {
+		return
+	}
+	if opacity >= 1.0 {
+		xDeleteProperty(x11Display, uint64(w.handle), atomNETWMWindowOpacity)
+	} else {
+		val := uint64(opacity * float32(_netWMWindowOpacityMax))
+		xChangeProperty(x11Display, uint64(w.handle),
+			atomNETWMWindowOpacity, 6, // XA_CARDINAL
+			32, 0,
+			uintptr(unsafe.Pointer(&val)),
+			1)
+	}
+	xFlush(x11Display)
+}
+
+// RequestAttention requests user attention via _NET_WM_STATE_DEMANDS_ATTENTION.
+func (w *Window) RequestAttention() {
+	if x11Display == 0 || w.handle == 0 {
+		return
+	}
+	w.sendNETWMState(_NET_WM_STATE_ADD, atomNETWMStateDemandsAttention, 0)
+	xFlush(x11Display)
+}
+
 
 // GetKeyScancode returns the platform scancode for a key. Linux: returns -1.
 func GetKeyScancode(key Key) int { return -1 }
@@ -213,30 +453,55 @@ func RawMouseMotionSupported() bool { return false }
 // Stub — no string hints are used in the purego implementation.
 func WindowHintString(hint Hint, value string) {}
 
-// ── Monitor gamma — Linux stubs ───────────────────────────────────────────────
+// ── Monitor gamma — implemented in linux_x11_gamma.go ────────────────────────
 
-// GetGammaRamp returns the monitor's gamma ramp.
-// Linux: not yet implemented; returns nil.
-func (m *Monitor) GetGammaRamp() *GammaRamp { return nil }
+// ── Window.GetFrameSize — reads _NET_FRAME_EXTENTS from the WM ───────────────
 
-// SetGammaRamp sets the monitor's gamma ramp.
-// Linux: not yet implemented.
-func (m *Monitor) SetGammaRamp(ramp *GammaRamp) {}
+// GetFrameSize returns the size of the decorations around the window's client
+// area as reported by the WM via _NET_FRAME_EXTENTS. Returns zeros if the
+// property is not available yet (e.g. before the window has been decorated).
+func (w *Window) GetFrameSize() (left, top, right, bottom int) {
+	if x11Display == 0 || w.handle == 0 {
+		return
+	}
+	// Request that the WM set the property if it hasn't already, then flush.
+	var reqEv _XClientMessageEvent
+	reqEv.Type = _ClientMessage
+	reqEv.Window = uint64(w.handle)
+	reqEv.MessageType = atomNETRequestFrameExtents
+	reqEv.Format = 32
+	xSendEvent(x11Display, x11Root, 0,
+		_SubstructureNotifyMask|_SubstructureRedirectMask,
+		uintptr(unsafe.Pointer(&reqEv)))
+	xSync(x11Display, 0)
 
-// SetGamma sets the monitor's gamma by computing a standard power-law ramp.
-// Linux: not yet implemented.
-func (m *Monitor) SetGamma(gamma float32) {}
+	var actualType uint64
+	var actualFormat int32
+	var nItems, bytesAfter uint64
+	var propPtr uintptr
 
-// ── Cursor.Destroy — Linux ────────────────────────────────────────────────────
+	ret := xGetWindowProperty(x11Display, uint64(w.handle),
+		atomNETFrameExtents,
+		0, 4, 0,
+		6, // XA_CARDINAL
+		uintptr(unsafe.Pointer(&actualType)),
+		uintptr(unsafe.Pointer(&actualFormat)),
+		uintptr(unsafe.Pointer(&nItems)),
+		uintptr(unsafe.Pointer(&bytesAfter)),
+		uintptr(unsafe.Pointer(&propPtr)))
 
-// Destroy is a convenience method; it calls DestroyCursor(c).
-func (c *Cursor) Destroy() { DestroyCursor(c) }
-
-// ── Window.GetFrameSize — Linux stub ─────────────────────────────────────────
-
-// GetFrameSize returns the size of each edge of the frame around the window's
-// client area. Linux: returns zeros (stub).
-func (w *Window) GetFrameSize() (left, top, right, bottom int) { return 0, 0, 0, 0 }
+	if ret != 0 || propPtr == 0 || nItems < 4 {
+		return
+	}
+	// _NET_FRAME_EXTENTS: left, right, top, bottom (each a C long = uint64)
+	data := (*[4]uint64)(unsafe.Pointer(propPtr))
+	left   = int(data[0])
+	right  = int(data[1])
+	top    = int(data[2])
+	bottom = int(data[3])
+	xFree(propPtr)
+	return
+}
 
 // GetWindowFrameSize is a package-level wrapper around (*Window).GetFrameSize.
 func GetWindowFrameSize(w *Window) (left, top, right, bottom int) { return w.GetFrameSize() }

@@ -195,7 +195,8 @@ const (
 	_WM_DPICHANGED   = 0x02E0
 	_WM_NCCREATE     = 0x0081
 	_WM_NCDESTROY    = 0x0082
-	_WM_SETICON      = 0x0080
+	_WM_SETICON        = 0x0080
+	_WM_DISPLAYCHANGE  = 0x007E
 )
 
 // WM_SIZE wParam values

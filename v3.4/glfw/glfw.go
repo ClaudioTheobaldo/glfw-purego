@@ -499,3 +499,8 @@ func DetachCurrentContext()      { base.DetachCurrentContext() }
 func SwapInterval(interval int)  { base.SwapInterval(interval) }
 func ExtensionSupported(extension string) bool { return base.ExtensionSupported(extension) }
 func GetProcAddress(name string) unsafe.Pointer { return base.GetProcAddress(name) }
+
+// ── Vulkan ────────────────────────────────────────────────────────────────────
+
+func VulkanSupported() bool                     { return base.VulkanSupported() }
+func GetRequiredInstanceExtensions() []string   { return base.GetRequiredInstanceExtensions() }

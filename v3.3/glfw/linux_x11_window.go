@@ -379,31 +379,20 @@ func (w *Window) SetInputMode(mode InputMode, value int) {
 	}
 	switch value {
 	case CursorNormal:
-		// Restore default cursor
-		xDefineCursor(x11Display, uint64(w.handle), 0)
-	case CursorHidden:
-		// Create an invisible cursor
-		hiddenCursor := xCreateFontCursor(x11Display, 0)
-		xDefineCursor(x11Display, uint64(w.handle), hiddenCursor)
-		xFreeCursor(x11Display, hiddenCursor)
-	case CursorDisabled:
-		// Hide cursor and confine to window (basic: just hide)
-		hiddenCursor := xCreateFontCursor(x11Display, 0)
-		xDefineCursor(x11Display, uint64(w.handle), hiddenCursor)
-		xFreeCursor(x11Display, hiddenCursor)
+		// Restore the user-set cursor, or the system default if none.
+		if w.cursor != 0 {
+			xDefineCursor(x11Display, uint64(w.handle), uint64(w.cursor))
+		} else {
+			xDefineCursor(x11Display, uint64(w.handle), 0)
+		}
+	case CursorHidden, CursorDisabled:
+		invis := getInvisibleCursor()
+		if invis != 0 {
+			xDefineCursor(x11Display, uint64(w.handle), invis)
+		}
 	}
 	xFlush(x11Display)
 }
-
-// ----------------------------------------------------------------------------
-// Clipboard (cut buffer 0 fallback)
-// ----------------------------------------------------------------------------
-
-// GetClipboardString returns the clipboard contents as a UTF-8 string.
-func GetClipboardString() string { return "" }
-
-// SetClipboardString places the given UTF-8 string on the clipboard.
-func SetClipboardString(s string) {}
 
 // ----------------------------------------------------------------------------
 // GetProcAddress / SwapInterval / ExtensionSupported

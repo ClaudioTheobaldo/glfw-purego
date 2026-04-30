@@ -155,9 +155,45 @@ func (m *Monitor) GetVideoModes() []*VidMode {
 	return modes
 }
 
+// ----------------------------------------------------------------------------
+// SetMonitorCallback — monitor connect/disconnect notifications
+// ----------------------------------------------------------------------------
+
+var (
+	winMonitorCb     func(*Monitor, PeripheralEvent)
+	winCachedMonitors []*Monitor
+)
+
 // SetMonitorCallback registers a callback for monitor connect/disconnect events.
-// Stub — not implemented on Windows yet.
+// The callback is fired from WM_DISPLAYCHANGE in wndProc.
 func SetMonitorCallback(cb func(monitor *Monitor, event PeripheralEvent)) {
+	winMonitorCb = cb
+	if cb != nil {
+		winCachedMonitors, _ = GetMonitors()
+	}
+}
+
+// diffAndFireMonitorCallbacks compares two monitor lists by name and fires
+// Connected/Disconnected events for monitors that appeared or disappeared.
+func diffAndFireMonitorCallbacks(old, cur []*Monitor, cb func(*Monitor, PeripheralEvent)) {
+	oldSet := make(map[string]*Monitor, len(old))
+	for _, m := range old {
+		oldSet[m.name] = m
+	}
+	curSet := make(map[string]*Monitor, len(cur))
+	for _, m := range cur {
+		curSet[m.name] = m
+	}
+	for _, m := range cur {
+		if _, existed := oldSet[m.name]; !existed {
+			cb(m, Connected)
+		}
+	}
+	for _, m := range old {
+		if _, exists := curSet[m.name]; !exists {
+			cb(m, Disconnected)
+		}
+	}
 }
 
 // ── Monitor gamma ─────────────────────────────────────────────────────────────

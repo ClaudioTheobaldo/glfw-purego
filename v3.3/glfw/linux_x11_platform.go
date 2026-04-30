@@ -16,15 +16,29 @@ var (
 	x11Root      uint64 // root window XID
 
 	// Atoms for WM protocols
-	atomWMDeleteWindow   uint64
-	atomWMProtocols      uint64
-	atomNETWMState       uint64
-	atomNETWMStateMaxH   uint64
-	atomNETWMStateMaxV   uint64
-	atomNETWMStateFull   uint64
-	atomNETWMStateHidden uint64
-	atomNETWMName        uint64
-	atomUTF8String       uint64
+	atomWMDeleteWindow         uint64
+	atomWMProtocols            uint64
+	atomNETWMState             uint64
+	atomNETWMStateMaxH         uint64
+	atomNETWMStateMaxV         uint64
+	atomNETWMStateFull         uint64
+	atomNETWMStateHidden       uint64
+	atomNETWMName              uint64
+	atomUTF8String             uint64
+	atomNETWMIcon                    uint64
+	atomNETWMStateAbove              uint64
+	atomMOTIFWMHints                 uint64
+	atomNETFrameExtents              uint64
+	atomNETRequestFrameExtents       uint64
+	atomNETWMWindowOpacity           uint64
+	atomNETWMStateDemandsAttention   uint64
+	atomCLIPBOARD                    uint64
+	atomTARGETS                      uint64
+	atomGLFWSel                      uint64
+
+	// Self-pipe for PostEmptyEvent / select-based WaitEvents
+	x11PostPipeRead  = -1
+	x11PostPipeWrite = -1
 
 	x11Loaded bool
 )
@@ -68,6 +82,18 @@ var (
 	xDefineCursor              func(display uintptr, window uint64, cursor uint64) int32
 	xCreateFontCursor          func(display uintptr, shape uint32) uint64
 	xFreeCursor                func(display uintptr, cursor uint64) int32
+	xCreateBitmapFromData      func(display uintptr, d uint64, data uintptr, width, height uint32) uint64
+	xFreePixmap                func(display uintptr, pixmap uint64) int32
+	xCreatePixmapCursor        func(display uintptr, source, mask uint64, fg, bg uintptr, x, y uint32) uint64
+	xGetWindowProperty         func(display uintptr, window, property uint64, longOffset, longLength int64, delete int32, reqType uint64, actualType, actualFormat, nItems, bytesAfter, propReturn uintptr) int32
+	xDeleteProperty            func(display uintptr, window, property uint64) int32
+	xConnectionNumber          func(display uintptr) int32
+	xSetWMNormalHints          func(display uintptr, window uint64, hints uintptr)
+	xSetSelectionOwner         func(display uintptr, selection, owner, time uint64)
+	xGetSelectionOwner         func(display uintptr, selection uint64) uint64
+	xConvertSelection          func(display uintptr, selection, target, property, requestor, time uint64)
+	xCheckTypedEvent           func(display uintptr, eventType int32, ev uintptr) int32
+	xCreateSimpleWindow        func(display uintptr, parent uint64, x, y int32, width, height, borderWidth uint32, border, background uint64) uint64
 )
 
 func loadX11() error {
@@ -118,6 +144,18 @@ func loadX11() error {
 	purego.RegisterLibFunc(&xDefineCursor, libX11Handle, "XDefineCursor")
 	purego.RegisterLibFunc(&xCreateFontCursor, libX11Handle, "XCreateFontCursor")
 	purego.RegisterLibFunc(&xFreeCursor, libX11Handle, "XFreeCursor")
+	purego.RegisterLibFunc(&xCreateBitmapFromData, libX11Handle, "XCreateBitmapFromData")
+	purego.RegisterLibFunc(&xFreePixmap, libX11Handle, "XFreePixmap")
+	purego.RegisterLibFunc(&xCreatePixmapCursor, libX11Handle, "XCreatePixmapCursor")
+	purego.RegisterLibFunc(&xGetWindowProperty, libX11Handle, "XGetWindowProperty")
+	purego.RegisterLibFunc(&xDeleteProperty, libX11Handle, "XDeleteProperty")
+	purego.RegisterLibFunc(&xConnectionNumber, libX11Handle, "XConnectionNumber")
+	purego.RegisterLibFunc(&xSetWMNormalHints, libX11Handle, "XSetWMNormalHints")
+	purego.RegisterLibFunc(&xSetSelectionOwner, libX11Handle, "XSetSelectionOwner")
+	purego.RegisterLibFunc(&xGetSelectionOwner, libX11Handle, "XGetSelectionOwner")
+	purego.RegisterLibFunc(&xConvertSelection, libX11Handle, "XConvertSelection")
+	purego.RegisterLibFunc(&xCheckTypedEvent, libX11Handle, "XCheckTypedEvent")
+	purego.RegisterLibFunc(&xCreateSimpleWindow, libX11Handle, "XCreateSimpleWindow")
 	x11Loaded = true
 	return nil
 }
@@ -146,11 +184,32 @@ func initX11Display() error {
 	atomNETWMStateMaxV = internAtom("_NET_WM_STATE_MAXIMIZED_VERT", false)
 	atomNETWMStateFull = internAtom("_NET_WM_STATE_FULLSCREEN", false)
 	atomNETWMStateHidden = internAtom("_NET_WM_STATE_HIDDEN", false)
-	atomNETWMName = internAtom("_NET_WM_NAME", false)
-	atomUTF8String = internAtom("UTF8_STRING", false)
+	atomNETWMName              = internAtom("_NET_WM_NAME", false)
+	atomUTF8String             = internAtom("UTF8_STRING", false)
+	atomNETWMIcon              = internAtom("_NET_WM_ICON", false)
+	atomNETWMStateAbove        = internAtom("_NET_WM_STATE_ABOVE", false)
+	atomMOTIFWMHints           = internAtom("_MOTIF_WM_HINTS", false)
+	atomNETFrameExtents              = internAtom("_NET_FRAME_EXTENTS", false)
+	atomNETRequestFrameExtents       = internAtom("_NET_REQUEST_FRAME_EXTENTS", false)
+	atomNETWMWindowOpacity           = internAtom("_NET_WM_WINDOW_OPACITY", false)
+	atomNETWMStateDemandsAttention   = internAtom("_NET_WM_STATE_DEMANDS_ATTENTION", false)
+	atomCLIPBOARD                    = internAtom("CLIPBOARD", false)
+	atomTARGETS                      = internAtom("TARGETS", false)
+	atomGLFWSel                      = internAtom("GLFW_SELECTION", false)
 
 	// Enable detectable auto-repeat so we get clean key repeat events
 	xkbSetDetectableAutoRepeat(x11Display, 1, 0)
+
+	// Init self-pipe for PostEmptyEvent / select-based WaitEvents
+	if x11PostPipeRead == -1 {
+		var fds [2]int
+		if err := syscall.Pipe(fds[:]); err == nil {
+			x11PostPipeRead = fds[0]
+			x11PostPipeWrite = fds[1]
+			syscall.SetNonblock(x11PostPipeRead, true)
+			syscall.SetNonblock(x11PostPipeWrite, true)
+		}
+	}
 
 	return nil
 }

@@ -405,3 +405,8 @@ func GetProcAddress(name string) unsafe.Pointer { return base.GetProcAddress(nam
 func ExtensionSupported(extension string) bool  { return base.ExtensionSupported(extension) }
 func GetCurrentContext() *Window                { return base.GetCurrentContext() }
 func DetachCurrentContext()                     { base.DetachCurrentContext() }
+
+// ── Vulkan (added in GLFW 3.2) ────────────────────────────────────────────────
+
+func VulkanSupported() bool                     { return base.VulkanSupported() }
+func GetRequiredInstanceExtensions() []string   { return base.GetRequiredInstanceExtensions() }

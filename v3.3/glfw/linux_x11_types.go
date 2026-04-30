@@ -65,6 +65,56 @@ const (
 )
 
 // ----------------------------------------------------------------------------
+// Selection event type constants
+// ----------------------------------------------------------------------------
+
+const (
+	_SelectionClear   = int32(29)
+	_SelectionRequest = int32(30)
+	_SelectionNotify  = int32(31)
+)
+
+// XA predefined atom IDs used for clipboard.
+const (
+	_xaString   = uint64(31) // XA_STRING
+	_xaAtom     = uint64(4)  // XA_ATOM
+	_xaCARDINAL = uint64(6)  // XA_CARDINAL
+)
+
+// _XSelectionRequestEvent — 80 bytes
+// Sent to the selection owner when another app requests the clipboard.
+type _XSelectionRequestEvent struct {
+	Type      int32
+	_pad0     int32
+	Serial    uint64
+	SendEvent int32
+	_pad1     int32
+	Display   uintptr
+	Owner     uint64 // selection owner window
+	Requestor uint64 // window requesting the data
+	Selection uint64 // Atom: which selection (CLIPBOARD)
+	Target    uint64 // Atom: requested format
+	Property  uint64 // Atom: where to write the data
+	Time      uint64 // timestamp
+}
+
+// _XSelectionEvent — 72 bytes
+// Sent to the requestor after conversion is complete.
+type _XSelectionEvent struct {
+	Type      int32
+	_pad0     int32
+	Serial    uint64
+	SendEvent int32
+	_pad1     int32
+	Display   uintptr
+	Requestor uint64
+	Selection uint64
+	Target    uint64
+	Property  uint64 // None (0) if conversion failed
+	Time      uint64
+}
+
+// ----------------------------------------------------------------------------
 // _NET_WM_STATE action constants
 // ----------------------------------------------------------------------------
 
@@ -72,6 +122,40 @@ const (
 	_NET_WM_STATE_REMOVE = 0
 	_NET_WM_STATE_ADD    = 1
 	_NET_WM_STATE_TOGGLE = 2
+)
+
+// ----------------------------------------------------------------------------
+// XSizeHints — used by XSetWMNormalHints for size limits and aspect ratio.
+// C struct layout on 64-bit Linux (all fields are C long = 8 bytes, except the
+// two-int aspect fields which are each 4-byte C int pairs packed into longs).
+// We store everything as int32 pairs with explicit padding to match the ABI.
+// Total size: 80 bytes.
+// ----------------------------------------------------------------------------
+
+type _XSizeHints struct {
+	Flags      int64   // 0  — bitmask of which fields are valid
+	X, Y       int32   // 8, 12 — position (rarely used)
+	_          [8]byte // 16–23 — width/height (rarely used, kept for layout)
+	MinWidth   int32   // 24
+	MinHeight  int32   // 28
+	MaxWidth   int32   // 32
+	MaxHeight  int32   // 36
+	WidthInc   int32   // 40
+	HeightInc  int32   // 44
+	MinAspX    int32   // 48  — min aspect: numerator
+	MinAspY    int32   // 52  — min aspect: denominator
+	MaxAspX    int32   // 56  — max aspect: numerator
+	MaxAspY    int32   // 60  — max aspect: denominator
+	BaseWidth  int32   // 64
+	BaseHeight int32   // 68
+	WinGravity int32   // 72
+	_          [4]byte // 76–79
+}
+
+const (
+	_PMinSize = int64(1 << 4)
+	_PMaxSize = int64(1 << 5)
+	_PAspect  = int64(1 << 7)
 )
 
 // ----------------------------------------------------------------------------
