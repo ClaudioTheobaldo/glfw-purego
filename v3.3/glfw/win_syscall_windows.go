@@ -85,6 +85,8 @@ var (
 	procFlashWindowEx              = modUser32.NewProc("FlashWindowEx")
 	procMapVirtualKeyW             = modUser32.NewProc("MapVirtualKeyW")
 	procGetKeyNameTextW            = modUser32.NewProc("GetKeyNameTextW")
+	procRegisterRawInputDevices    = modUser32.NewProc("RegisterRawInputDevices")
+	procGetRawInputData            = modUser32.NewProc("GetRawInputData")
 )
 
 // ----------------------------------------------------------------------------
@@ -643,6 +645,35 @@ func mapVirtualKeyW(uCode, uMapType uint32) uint32 {
 func getKeyNameTextW(lParam uintptr, buf []uint16) int {
 	r, _, _ := procGetKeyNameTextW.Call(lParam, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
 	return int(r)
+}
+
+// registerRawInputDevices registers (or unregisters) devices for raw input.
+// Returns true on success.
+func registerRawInputDevices(devices []_RAWINPUTDEVICE) bool {
+	r, _, _ := procRegisterRawInputDevices.Call(
+		uintptr(unsafe.Pointer(&devices[0])),
+		uintptr(len(devices)),
+		unsafe.Sizeof(devices[0]),
+	)
+	return r != 0
+}
+
+// getRawInputData copies raw input data from an HRAWINPUT handle into buf.
+// If buf is nil it returns the required size in bytes.
+// Returns the number of bytes copied, or ^uint32(0) on failure.
+func getRawInputData(hRawInput uintptr, buf *_RAWINPUT, cbSize *uint32) uint32 {
+	var bufPtr uintptr
+	if buf != nil {
+		bufPtr = uintptr(unsafe.Pointer(buf))
+	}
+	r, _, _ := procGetRawInputData.Call(
+		hRawInput,
+		uintptr(_RID_INPUT),
+		bufPtr,
+		uintptr(unsafe.Pointer(cbSize)),
+		unsafe.Sizeof(_RAWINPUTHEADER{}),
+	)
+	return uint32(r)
 }
 
 // ----------------------------------------------------------------------------

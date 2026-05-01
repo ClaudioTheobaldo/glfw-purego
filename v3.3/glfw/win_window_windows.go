@@ -659,10 +659,14 @@ func (w *Window) SetCursorPos(x, y float64) {
 }
 
 // GetInputMode returns the current value of an input mode.
-// Only the CursorMode is fully implemented; other modes return 0.
 func (w *Window) GetInputMode(mode InputMode) int {
-	if mode == CursorMode {
+	switch mode {
+	case CursorMode:
 		return w.cursorMode
+	case RawMouseMotion:
+		if w.rawMouseMotion {
+			return 1
+		}
 	}
 	return 0
 }
@@ -678,8 +682,29 @@ func (w *Window) GetInputMode(mode InputMode) int {
 // CursorHidden hides the cursor without clipping.
 // CursorNormal restores the cursor to its default visible, unclipped state.
 func (w *Window) SetInputMode(mode InputMode, value int) {
+	if mode == RawMouseMotion {
+		if value == 1 && !w.rawMouseMotion {
+			w.rawMouseMotion = true
+			w.rawCursorX, w.rawCursorY = 0, 0
+			registerRawInputDevices([]_RAWINPUTDEVICE{{
+				UsUsagePage: _HID_USAGE_PAGE_GENERIC,
+				UsUsage:     _HID_USAGE_GENERIC_MOUSE,
+				DwFlags:     _RIDEV_INPUTSINK,
+				HwndTarget:  w.handle,
+			}})
+		} else if value == 0 && w.rawMouseMotion {
+			w.rawMouseMotion = false
+			registerRawInputDevices([]_RAWINPUTDEVICE{{
+				UsUsagePage: _HID_USAGE_PAGE_GENERIC,
+				UsUsage:     _HID_USAGE_GENERIC_MOUSE,
+				DwFlags:     _RIDEV_REMOVE,
+				HwndTarget:  0,
+			}})
+		}
+		return
+	}
 	if mode != CursorMode {
-		return // other modes not yet implemented
+		return
 	}
 	prev := w.cursorMode
 	next := value
@@ -925,9 +950,31 @@ func wndProc(hwnd uintptr, msg uint32, wParam, lParam uintptr) uintptr {
 		}
 		return 0
 
+	case _WM_INPUT:
+		if w.rawMouseMotion {
+			var ri _RAWINPUT
+			sz := uint32(unsafe.Sizeof(ri))
+			if getRawInputData(lParam, &ri, &sz) != ^uint32(0) &&
+				ri.Header.DwType == _RIM_TYPEMOUSE &&
+				ri.Mouse.UsFlags&_MOUSE_MOVE_ABSOLUTE == 0 {
+				dx := float64(ri.Mouse.LLastX)
+				dy := float64(ri.Mouse.LLastY)
+				w.rawCursorX += dx
+				w.rawCursorY += dy
+				if w.fCursorPosHolder != nil {
+					w.fCursorPosHolder(w, w.rawCursorX, w.rawCursorY)
+				}
+			}
+		}
+		return 0
+
 	case _WM_MOUSEMOVE:
-		if w.fCursorPosHolder != nil {
-			w.fCursorPosHolder(w, float64(getXLParam(lParam)), float64(getYLParam(lParam)))
+		// When raw motion is enabled, WM_MOUSEMOVE is suppressed so callers
+		// only receive the unaccelerated deltas delivered via WM_INPUT.
+		if !w.rawMouseMotion {
+			if w.fCursorPosHolder != nil {
+				w.fCursorPosHolder(w, float64(getXLParam(lParam)), float64(getYLParam(lParam)))
+			}
 		}
 		return 0
 

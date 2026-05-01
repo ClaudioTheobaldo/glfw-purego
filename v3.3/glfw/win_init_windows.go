@@ -113,7 +113,8 @@ func GetVersionString() string { return "3.3.0 purego" }
 
 // RawMouseMotionSupported reports whether raw (unscaled, unaccelerated) mouse
 // motion is supported on the current platform.
-func RawMouseMotionSupported() bool { return false }
+// On Windows, WM_INPUT-based raw mouse motion is always available.
+func RawMouseMotionSupported() bool { return true }
 
 // WindowHintString sets a string-valued window or context creation hint.
 // Stub — no string hints are used in the purego implementation.

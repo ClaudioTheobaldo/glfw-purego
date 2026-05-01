@@ -107,6 +107,12 @@ func handleX11Event(ev *_XEvent) {
 		return
 	}
 
+	// XInput2 GenericEvent — not directed at a specific window handle.
+	if ev.eventType() == _GenericEvent {
+		handleGenericEvent(ev)
+		return
+	}
+
 	xwin := ev.window()
 	v, ok := windowByHandle.Load(uintptr(xwin))
 	if !ok {
@@ -168,10 +174,15 @@ func handleX11Event(ev *_XEvent) {
 		}
 	case _ClientMessage:
 		cm := (*_XClientMessageEvent)(unsafe.Pointer(ev))
-		if uint64(cm.Data[0]) == atomWMDeleteWindow {
-			w.shouldClose = true
-			if w.fCloseHolder != nil {
-				w.fCloseHolder(w)
+		switch cm.MessageType {
+		case atomXdndEnter, atomXdndPosition, atomXdndLeave, atomXdndDrop:
+			handleXdndClientMessage(w, cm)
+		default:
+			if uint64(cm.Data[0]) == atomWMDeleteWindow {
+				w.shouldClose = true
+				if w.fCloseHolder != nil {
+					w.fCloseHolder(w)
+				}
 			}
 		}
 	case _DestroyNotify:

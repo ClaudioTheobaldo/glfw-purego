@@ -125,6 +125,9 @@ func CreateWindow(width, height int, title string, monitor, share *Monitor) (*Wi
 	// Initialise per-window state
 	_ = getX11State(uintptr(xwin))
 
+	// Advertise XDND version 5 so drag sources know we accept drops.
+	setXdndAware(xwin)
+
 	// Show window if Visible hint is set (default: 1)
 	if h[Visible] != 0 {
 		xMapWindow(x11Display, xwin)
@@ -362,14 +365,31 @@ func (w *Window) SetCursorPos(x, y float64) {
 
 // GetInputMode returns the current value of an input mode.
 func (w *Window) GetInputMode(mode InputMode) int {
-	if mode == CursorMode {
+	switch mode {
+	case CursorMode:
 		return w.cursorMode
+	case RawMouseMotion:
+		if w.rawMouseMotion {
+			return 1
+		}
+		return 0
 	}
 	return 0
 }
 
 // SetInputMode sets an input mode on the window.
 func (w *Window) SetInputMode(mode InputMode, value int) {
+	if mode == RawMouseMotion {
+		if value == 1 && !w.rawMouseMotion {
+			w.rawMouseMotion = true
+			w.rawCursorX, w.rawCursorY = 0, 0
+			enableRawMotion(w)
+		} else if value == 0 && w.rawMouseMotion {
+			w.rawMouseMotion = false
+			disableRawMotion(w)
+		}
+		return
+	}
 	if mode != CursorMode {
 		return
 	}

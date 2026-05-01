@@ -197,6 +197,7 @@ const (
 	_WM_NCDESTROY    = 0x0082
 	_WM_SETICON        = 0x0080
 	_WM_DISPLAYCHANGE  = 0x007E
+	_WM_INPUT          = uint32(0x00FF)
 )
 
 // WM_SIZE wParam values
@@ -554,3 +555,67 @@ const (
 
 // Extended key flag for GetKeyNameTextW
 const _KF_EXTENDED = uint32(0x0100)
+
+// ----------------------------------------------------------------------------
+// Raw input (WM_INPUT / RegisterRawInputDevices) — Group 6
+// ----------------------------------------------------------------------------
+
+// _RAWINPUTDEVICE registers a device class for raw input delivery.
+// 64-bit layout: usUsagePage(2)+usUsage(2)+dwFlags(4)+hwndTarget(8) = 16 bytes
+type _RAWINPUTDEVICE struct {
+	UsUsagePage uint16
+	UsUsage     uint16
+	DwFlags     uint32
+	HwndTarget  uintptr
+}
+
+// _RAWINPUTHEADER is the header prepended to every RAWINPUT structure.
+// 64-bit layout: dwType(4)+dwSize(4)+hDevice(8)+wParam(8) = 24 bytes
+type _RAWINPUTHEADER struct {
+	DwType  uint32
+	DwSize  uint32
+	HDevice uintptr
+	WParam  uintptr
+}
+
+// _RAWMOUSE holds relative or absolute mouse movement data.
+// 64-bit layout: usFlags(2)+pad(2)+usButtonFlags(2)+usButtonData(2)+
+//                ulRawButtons(4)+lLastX(4)+lLastY(4)+ulExtraInfo(4) = 24 bytes
+type _RAWMOUSE struct {
+	UsFlags       uint16
+	_             uint16 // padding before button union
+	UsButtonFlags uint16
+	UsButtonData  uint16
+	UlRawButtons  uint32
+	LLastX        int32
+	LLastY        int32
+	UlExtraInformation uint32
+}
+
+// _RAWINPUT is the complete raw input packet for a mouse event.
+// 64-bit layout: header(24)+mouse(24) = 48 bytes
+type _RAWINPUT struct {
+	Header _RAWINPUTHEADER
+	Mouse  _RAWMOUSE
+}
+
+// Raw input usage constants (HID usage page 1 = Generic Desktop).
+const (
+	_HID_USAGE_PAGE_GENERIC = uint16(0x01)
+	_HID_USAGE_GENERIC_MOUSE = uint16(0x02)
+)
+
+// RegisterRawInputDevices flags.
+const (
+	_RIDEV_INPUTSINK = uint32(0x00000100) // receive input even when not in focus
+	_RIDEV_REMOVE    = uint32(0x00000001) // unregister a device
+)
+
+// GetRawInputData command.
+const _RID_INPUT = uint32(0x10000003)
+
+// RAWINPUTHEADER.dwType values.
+const _RIM_TYPEMOUSE = uint32(0)
+
+// RAWMOUSE.usFlags: when bit 0 is set the values are absolute, not relative.
+const _MOUSE_MOVE_ABSOLUTE = uint16(0x0001)

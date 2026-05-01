@@ -81,6 +81,44 @@ func testMonitors() {
 	}
 }
 
+func testRawMouseMotion() {
+	// RawMouseMotionSupported must return true on Windows (WM_INPUT is always available).
+	check("RawMouseMotionSupported", glfw.RawMouseMotionSupported(), "")
+
+	glfw.WindowHint(glfw.Visible, 0)
+	glfw.WindowHint(glfw.ClientAPIs, int(glfw.NoAPI))
+	w, err := glfw.CreateWindow(1, 1, "raw-motion-test", nil, nil)
+	check("CreateWindow (raw motion prereq)", err == nil, fmt.Sprintf("err=%v", err))
+	if err != nil {
+		return
+	}
+	defer w.Destroy()
+
+	// Enable raw mouse motion — no panic expected.
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				fail("SetInputMode(RawMouseMotion,1): no panic", fmt.Sprintf("panic: %v", r))
+			}
+		}()
+		w.SetInputMode(glfw.RawMouseMotion, 1)
+		check("GetInputMode(RawMouseMotion) after enable", w.GetInputMode(glfw.RawMouseMotion) == 1, "")
+		pass("SetInputMode(RawMouseMotion,1): no panic", "")
+	}()
+
+	// Disable raw mouse motion.
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				fail("SetInputMode(RawMouseMotion,0): no panic", fmt.Sprintf("panic: %v", r))
+			}
+		}()
+		w.SetInputMode(glfw.RawMouseMotion, 0)
+		check("GetInputMode(RawMouseMotion) after disable", w.GetInputMode(glfw.RawMouseMotion) == 0, "")
+		pass("SetInputMode(RawMouseMotion,0): no panic", "")
+	}()
+}
+
 func testVulkan() {
 	supported := glfw.VulkanSupported()
 	// Just report — may be false if vulkan-1.dll isn't installed.
@@ -139,6 +177,15 @@ func main() {
 
 	fmt.Println("── Vulkan ───────────────────────────────────────────────")
 	testVulkan()
+	fmt.Println()
+
+	fmt.Println("── Raw Mouse Motion ─────────────────────────────────────")
+	if err := glfw.Init(); err != nil {
+		fail("Init (raw-motion prereq)", err.Error())
+	} else {
+		testRawMouseMotion()
+		glfw.Terminate()
+	}
 	fmt.Println()
 
 	fmt.Println("── Clipboard ────────────────────────────────────────────")

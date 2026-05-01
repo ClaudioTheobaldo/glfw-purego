@@ -109,6 +109,11 @@ type Window struct {
 	// Aspect ratio constraint (0/0 = none)
 	aspectNum, aspectDen int
 
+	// rawMouseMotion: true when raw (unaccelerated) mouse motion is active.
+	rawMouseMotion bool
+	// rawCursorX/Y: virtual cursor position accumulated from raw motion deltas.
+	rawCursorX, rawCursorY float64
+
 	// --- Callback holders (identical fields to go-gl/glfw) ---
 	fPosHolder             func(w *Window, xpos, ypos int)
 	fSizeHolder            func(w *Window, width, height int)

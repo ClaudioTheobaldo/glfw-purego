@@ -36,6 +36,18 @@ var (
 	atomTARGETS                      uint64
 	atomGLFWSel                      uint64
 
+	// XDND atoms (Group 7 — drag-and-drop)
+	atomXdndAware      uint64
+	atomXdndEnter      uint64
+	atomXdndPosition   uint64
+	atomXdndStatus     uint64
+	atomXdndLeave      uint64
+	atomXdndDrop       uint64
+	atomXdndFinished   uint64
+	atomXdndSelection  uint64
+	atomXdndActionCopy uint64
+	atomTextURIList    uint64
+
 	// Self-pipe for PostEmptyEvent / select-based WaitEvents
 	x11PostPipeRead  = -1
 	x11PostPipeWrite = -1
@@ -94,6 +106,11 @@ var (
 	xConvertSelection          func(display uintptr, selection, target, property, requestor, time uint64)
 	xCheckTypedEvent           func(display uintptr, eventType int32, ev uintptr) int32
 	xCreateSimpleWindow        func(display uintptr, parent uint64, x, y int32, width, height, borderWidth uint32, border, background uint64) uint64
+
+	// XInput2 generic event support (Group 6)
+	xGetEventData  func(display uintptr, cookie uintptr) int32
+	xFreeEventData func(display uintptr, cookie uintptr)
+	xQueryExtension func(display uintptr, name uintptr, majorOpcode, firstEvent, firstError uintptr) int32
 )
 
 func loadX11() error {
@@ -156,6 +173,9 @@ func loadX11() error {
 	purego.RegisterLibFunc(&xConvertSelection, libX11Handle, "XConvertSelection")
 	purego.RegisterLibFunc(&xCheckTypedEvent, libX11Handle, "XCheckTypedEvent")
 	purego.RegisterLibFunc(&xCreateSimpleWindow, libX11Handle, "XCreateSimpleWindow")
+	purego.RegisterLibFunc(&xGetEventData, libX11Handle, "XGetEventData")
+	purego.RegisterLibFunc(&xFreeEventData, libX11Handle, "XFreeEventData")
+	purego.RegisterLibFunc(&xQueryExtension, libX11Handle, "XQueryExtension")
 	x11Loaded = true
 	return nil
 }
@@ -196,6 +216,18 @@ func initX11Display() error {
 	atomCLIPBOARD                    = internAtom("CLIPBOARD", false)
 	atomTARGETS                      = internAtom("TARGETS", false)
 	atomGLFWSel                      = internAtom("GLFW_SELECTION", false)
+
+	// XDND atoms
+	atomXdndAware      = internAtom("XdndAware", false)
+	atomXdndEnter      = internAtom("XdndEnter", false)
+	atomXdndPosition   = internAtom("XdndPosition", false)
+	atomXdndStatus     = internAtom("XdndStatus", false)
+	atomXdndLeave      = internAtom("XdndLeave", false)
+	atomXdndDrop       = internAtom("XdndDrop", false)
+	atomXdndFinished   = internAtom("XdndFinished", false)
+	atomXdndSelection  = internAtom("XdndSelection", false)
+	atomXdndActionCopy = internAtom("XdndActionCopy", false)
+	atomTextURIList    = internAtom("text/uri-list", false)
 
 	// Enable detectable auto-repeat so we get clean key repeat events
 	xkbSetDetectableAutoRepeat(x11Display, 1, 0)

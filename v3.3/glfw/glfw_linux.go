@@ -447,9 +447,6 @@ func GetVersion() (major, minor, revision int) { return 3, 3, 0 }
 // GetVersionString returns a human-readable version string.
 func GetVersionString() string { return "3.3.0 purego" }
 
-// RawMouseMotionSupported reports whether raw (unscaled, unaccelerated) mouse
-// motion is supported on the current platform.
-func RawMouseMotionSupported() bool { return false }
 
 // WindowHintString sets a string-valued window or context creation hint.
 // Stub — no string hints are used in the purego implementation.

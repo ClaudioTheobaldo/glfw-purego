@@ -356,6 +356,86 @@ type _XSetWindowAttributes struct {
 }
 
 // ----------------------------------------------------------------------------
+// XInput2 / GenericEvent types (Group 6 — raw mouse motion)
+// ----------------------------------------------------------------------------
+
+// GenericEvent X11 type constant (all XInput2 events arrive with this type).
+const _GenericEvent = int32(35)
+
+// XInput2 sub-event type and device constants.
+const (
+	_XI_RawMotion       = int32(17)
+	_XIAllMasterDevices = int32(1)
+)
+
+// _XGenericEventCookie is the X11 GenericEvent cookie struct.
+// When ev.eventType() == _GenericEvent, cast ev to this type and call
+// XGetEventData to populate Data with the extension-specific payload.
+//
+// 64-bit layout:
+//
+//	type(4)+pad(4)+serial(8)+sendEvent(4)+pad(4)+display(8)+
+//	extension(4)+evtype(4)+cookie(4)+pad(4)+data(8) = 56 bytes
+type _XGenericEventCookie struct {
+	Type      int32   // 0
+	_pad0     int32   // 4
+	Serial    uint64  // 8
+	SendEvent int32   // 16
+	_pad1     int32   // 20
+	Display   uintptr // 24
+	Extension int32   // 32: major opcode of the Xi extension
+	Evtype    int32   // 36: XI_RawMotion = 17, etc.
+	Cookie    uint32  // 40
+	_pad2     uint32  // 44
+	Data      uintptr // 48: filled by XGetEventData
+}
+
+// _XIValuatorState is embedded inside _XIRawEvent.
+//
+// 64-bit layout:
+//
+//	maskLen(4)+pad(4)+mask*(8)+numValuators(4)+pad(4)+values*(8) = 32 bytes
+type _XIValuatorState struct {
+	MaskLen      int32
+	_pad0        int32
+	Mask         uintptr // unsigned char*
+	NumValuators int32
+	_pad1        int32
+	Values       uintptr // double*
+}
+
+// _XIRawEvent is the payload at _XGenericEventCookie.Data for XI_RawMotion.
+//
+// 64-bit layout (verified against XInput2.h):
+//
+//	type(4)+pad(4)+serial(8)+sendEvent(4)+pad(4)+display(8)+time(8)+
+//	deviceid(4)+sourceid(4)+detail(4)+flags(4)=56 + XIValuatorState(32) + rawValues*(8) = 96 bytes
+type _XIRawEvent struct {
+	Type      int32            // 0
+	_pad0     int32            // 4
+	Serial    uint64           // 8
+	SendEvent int32            // 16
+	_pad1     int32            // 20
+	Display   uintptr          // 24
+	Time      uint64           // 32
+	DeviceID  int32            // 40
+	SourceID  int32            // 44
+	Detail    int32            // 48
+	Flags     int32            // 52
+	Valuators _XIValuatorState // 56..87
+	RawValues uintptr          // 88: double*
+}
+
+// _XIEventMask is passed to XISelectEvents.
+//
+// 64-bit layout: deviceid(4)+maskLen(4)+mask*(8) = 16 bytes
+type _XIEventMask struct {
+	DeviceID int32
+	MaskLen  int32
+	Mask     uintptr // unsigned char*
+}
+
+// ----------------------------------------------------------------------------
 // _XWindowAttributes
 // ----------------------------------------------------------------------------
 

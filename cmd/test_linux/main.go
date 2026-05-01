@@ -357,6 +357,35 @@ func testSizeHints(w *glfw.Window, xid uintptr) {
 	}
 }
 
+func testRawMouseMotion(w *glfw.Window) {
+	supported := glfw.RawMouseMotionSupported()
+	check("RawMouseMotionSupported: ran without panic", true, fmt.Sprintf("result=%v", supported))
+
+	if !supported {
+		skipTest("SetInputMode(RawMouseMotion,1)", "XInput2 not available")
+		skipTest("GetInputMode(RawMouseMotion) after enable", "XInput2 not available")
+		skipTest("SetInputMode(RawMouseMotion,0)", "XInput2 not available")
+		skipTest("GetInputMode(RawMouseMotion) after disable", "XInput2 not available")
+		return
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			fail("SetInputMode(RawMouseMotion): no panic", fmt.Sprintf("panic: %v", r))
+		}
+	}()
+
+	w.SetInputMode(glfw.RawMouseMotion, 1)
+	check("GetInputMode(RawMouseMotion) after enable",
+		w.GetInputMode(glfw.RawMouseMotion) == 1, "")
+	pass("SetInputMode(RawMouseMotion,1): no panic", "")
+
+	w.SetInputMode(glfw.RawMouseMotion, 0)
+	check("GetInputMode(RawMouseMotion) after disable",
+		w.GetInputMode(glfw.RawMouseMotion) == 0, "")
+	pass("SetInputMode(RawMouseMotion,0): no panic", "")
+}
+
 func testClipboard() {
 	const want = "hello-glfw-clipboard-test-3817"
 	glfw.SetClipboardString(want)
@@ -419,6 +448,9 @@ func main() {
 		testAttention(w)
 		fmt.Println()
 		testSizeHints(w, xid)
+		fmt.Println()
+		fmt.Println("── Raw Mouse Motion ───────────────────────────────────────────")
+		testRawMouseMotion(w)
 		fmt.Println()
 		testClipboard()
 		w.Destroy()
