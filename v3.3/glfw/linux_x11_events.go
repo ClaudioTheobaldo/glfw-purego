@@ -17,6 +17,12 @@ func PollEvents() {
 		xNextEvent(x11Display, uintptr(unsafe.Pointer(&ev)))
 		handleX11Event(&ev)
 	}
+	// Poll joystick events and check for hot-plug only after the user
+	// has called at least one joystick API (avoids scanning /dev/input on
+	// every PollEvents call for apps that never use joysticks).
+	if jsEverInitialized {
+		pollJoystickEvents()
+	}
 }
 
 // WaitEvents blocks until at least one X11 event or a PostEmptyEvent wake-up

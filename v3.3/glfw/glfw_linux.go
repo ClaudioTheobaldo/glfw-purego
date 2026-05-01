@@ -275,38 +275,6 @@ func (w *Window) SetIcon(images []Image) {
 	xFlush(x11Display)
 }
 
-// JoystickPresent returns whether a joystick is connected.
-func JoystickPresent(joy Joystick) bool { return false }
-
-// GetJoystickAxes returns the joystick axis values.
-func GetJoystickAxes(joy Joystick) []float32 { return nil }
-
-// GetJoystickButtons returns the joystick button states.
-func GetJoystickButtons(joy Joystick) []Action { return nil }
-
-// GetJoystickHats returns the joystick hat states.
-func GetJoystickHats(joy Joystick) []JoystickHatState { return nil }
-
-// GetJoystickName returns the joystick name.
-func GetJoystickName(joy Joystick) string { return "" }
-
-// GetJoystickGUID returns the joystick GUID.
-func GetJoystickGUID(joy Joystick) string { return "" }
-
-// JoystickIsGamepad returns whether the joystick is a full gamepad.
-func JoystickIsGamepad(joy Joystick) bool { return false }
-
-// GetGamepadName returns the gamepad name.
-func GetGamepadName(joy Joystick) string { return "" }
-
-// GetGamepadState fills state with gamepad button/axis data.
-func GetGamepadState(joy Joystick, state *GamepadState) bool { return false }
-
-// UpdateGamepadMappings updates the gamepad mapping database.
-func UpdateGamepadMappings(mappings string) bool { return false }
-
-// SetJoystickCallback sets a callback for joystick connect/disconnect.
-func SetJoystickCallback(cb func(joy Joystick, event PeripheralEvent)) {}
 
 // ----------------------------------------------------------------------------
 // New APIs — Linux stubs

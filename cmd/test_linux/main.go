@@ -386,6 +386,73 @@ func testRawMouseMotion(w *glfw.Window) {
 	pass("SetInputMode(RawMouseMotion,0): no panic", "")
 }
 
+func testJoystick() {
+	// ── API surface smoke-test ────────────────────────────────────────────────
+	// All calls must complete without panicking regardless of whether any
+	// joystick is physically connected.
+	defer func() {
+		if r := recover(); r != nil {
+			fail("Joystick API: no panic", fmt.Sprintf("panic: %v", r))
+		}
+	}()
+
+	// Callback registration — must not panic.
+	var cbFired bool
+	glfw.SetJoystickCallback(func(joy glfw.Joystick, ev glfw.PeripheralEvent) {
+		cbFired = true
+		_ = cbFired
+	})
+	pass("SetJoystickCallback: no panic", "")
+
+	// Scan all 16 slots.
+	connected := 0
+	for i := range 16 {
+		joy := glfw.Joystick(i)
+
+		present := joy.Present()
+		if !present {
+			continue
+		}
+		connected++
+
+		name := glfw.GetJoystickName(joy)
+		guid := glfw.GetJoystickGUID(joy)
+		axes := joy.GetAxes()
+		btns := joy.GetButtons()
+		hats := joy.GetHats()
+		isGP := glfw.JoystickIsGamepad(joy)
+		gpName := glfw.GetGamepadName(joy)
+
+		fmt.Printf("      [%d] %-30s  GUID=%-16s  axes=%d  buttons=%d  hats=%d  gamepad=%v\n",
+			i, name, guid, len(axes), len(btns), len(hats), isGP)
+
+		// GetGamepadState — valid return only makes sense for a gamepad.
+		if isGP {
+			var gs glfw.GamepadState
+			ok := glfw.GetGamepadState(joy, &gs)
+			check(fmt.Sprintf("GetGamepadState[%d]", i), ok, fmt.Sprintf("name=%q", gpName))
+		}
+	}
+
+	if connected == 0 {
+		skipTest("Joystick: presence check", "no joystick connected — skipping device checks")
+		// Still verify that all getters return the zero-value for slot 0.
+		check("JoystickPresent(0) == false (no device)", !glfw.JoystickPresent(glfw.Joystick1), "")
+		check("GetJoystickAxes(0) == nil", glfw.GetJoystickAxes(glfw.Joystick1) == nil, "")
+		check("GetJoystickButtons(0) == nil", glfw.GetJoystickButtons(glfw.Joystick1) == nil, "")
+		check("GetJoystickHats(0) == nil", glfw.GetJoystickHats(glfw.Joystick1) == nil, "")
+		check("GetJoystickName(0) == \"\"", glfw.GetJoystickName(glfw.Joystick1) == "", "")
+		check("GetJoystickGUID(0) == \"\"", glfw.GetJoystickGUID(glfw.Joystick1) == "", "")
+		check("JoystickIsGamepad(0) == false", !glfw.JoystickIsGamepad(glfw.Joystick1), "")
+		var gs glfw.GamepadState
+		check("GetGamepadState(0) == false", !glfw.GetGamepadState(glfw.Joystick1, &gs), "")
+		pass("UpdateGamepadMappings: no panic", "")
+		glfw.UpdateGamepadMappings("")
+	} else {
+		pass(fmt.Sprintf("Joystick: found %d device(s)", connected), "")
+	}
+}
+
 func testClipboard() {
 	const want = "hello-glfw-clipboard-test-3817"
 	glfw.SetClipboardString(want)
@@ -455,6 +522,10 @@ func main() {
 		testClipboard()
 		w.Destroy()
 	}
+
+	fmt.Println("── Joystick ───────────────────────────────────────────────────")
+	testJoystick()
+	fmt.Println()
 
 	fmt.Println()
 	fmt.Println("───────────────────────────────────────────────────────────────")
