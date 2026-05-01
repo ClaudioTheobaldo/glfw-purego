@@ -379,7 +379,9 @@ func (w *Window) GetOpacity() float32 {
 	if ret != 0 || propPtr == 0 || nItems < 1 {
 		return 1.0
 	}
-	val := *(*uint64)(unsafe.Pointer(propPtr))
+	// Xlib sign-extends format=32 CARD32 values to native long (8 bytes) on
+	// 64-bit systems. Mask to the lower 32 bits to recover the original CARDINAL.
+	val := *(*uint64)(unsafe.Pointer(propPtr)) & 0xFFFFFFFF
 	xFree(propPtr)
 	return float32(val) / float32(_netWMWindowOpacityMax)
 }
@@ -493,12 +495,14 @@ func (w *Window) GetFrameSize() (left, top, right, bottom int) {
 	if ret != 0 || propPtr == 0 || nItems < 4 {
 		return
 	}
-	// _NET_FRAME_EXTENTS: left, right, top, bottom (each a C long = uint64)
+	// _NET_FRAME_EXTENTS: left, right, top, bottom — each a CARDINAL (uint32).
+	// Xlib sign-extends format=32 values to 64-bit longs; mask to recover the
+	// original 32-bit unsigned value.
 	data := (*[4]uint64)(unsafe.Pointer(propPtr))
-	left   = int(data[0])
-	right  = int(data[1])
-	top    = int(data[2])
-	bottom = int(data[3])
+	left   = int(data[0] & 0xFFFFFFFF)
+	right  = int(data[1] & 0xFFFFFFFF)
+	top    = int(data[2] & 0xFFFFFFFF)
+	bottom = int(data[3] & 0xFFFFFFFF)
 	xFree(propPtr)
 	return
 }
