@@ -11,7 +11,6 @@
 package glfw
 
 import (
-	"errors"
 	"fmt"
 	"runtime"
 	"sync"
@@ -163,6 +162,7 @@ var (
 
 // Monitor represents a connected display.
 type Monitor struct {
+	cgDisplayID       uint32 // CGDirectDisplayID (macOS)
 	name              string
 	x, y              int
 	widthPx, heightPx int
@@ -209,19 +209,13 @@ func diffAndFireMonitorCallbacks(old, cur []*Monitor, cb func(*Monitor, Peripher
 	}
 }
 
-// GetMonitors returns all connected monitors.
-// Stub — Phase D will wire CoreGraphics display enumeration.
-func GetMonitors() ([]*Monitor, error) {
-	return nil, errors.New("glfw: macOS monitor enumeration not yet implemented")
-}
-
-// GetPrimaryMonitor returns the primary monitor.
-// Stub — Phase D.
-func GetPrimaryMonitor() *Monitor { return nil }
-
 // SetMonitorCallback registers a callback for monitor connect/disconnect events.
+// The first non-nil registration also arms the CGDisplay reconfiguration hook.
 func SetMonitorCallback(cb func(monitor *Monitor, event PeripheralEvent)) {
 	darwinMonitorCb = cb
+	if cb != nil && darwinCGReconfigCBPtr == 0 {
+		registerMonitorReconfigCB()
+	}
 }
 
 // ── NSString helpers ──────────────────────────────────────────────────────────
@@ -454,12 +448,16 @@ func Init() error {
 	// Cache the default run-loop mode string.
 	nsDefaultRunLoopMode = nsStringFromGoString("NSDefaultRunLoopMode")
 
-	// Register all Objective-C classes (once per process).
+	// Register all Objective-C classes and load native libraries (once per process).
 	darwinInitOnce.Do(func() {
 		registerDelegateClass()
 		registerViewClass()
 		initCursorCG()
+		initMonitorCG()
 	})
+
+	// Snapshot the connected monitors for hotplug diffing.
+	darwinCachedMonitors, _ = GetMonitors()
 
 	darwinInitialized = true
 	return nil
@@ -468,6 +466,7 @@ func Init() error {
 // Terminate cleans up all GLFW resources.
 func Terminate() {
 	darwinInitialized = false
+	deregisterMonitorReconfigCB()
 	if nsPool != 0 {
 		nsPool.Send(selDrain)
 		nsPool = 0

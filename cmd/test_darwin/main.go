@@ -122,12 +122,25 @@ func testFeatureQueries() {
 }
 
 func testMonitors() {
-	fmt.Println("── Monitors (stub) ──────────────────────────────────")
-	// The stub always returns nil / error; just verify no panic.
-	monitors, _ := glfw.GetMonitors()
-	check("GetMonitors: no panic", true, fmt.Sprintf("n=%d", len(monitors)))
+	fmt.Println("── Monitors ─────────────────────────────────────────")
+	monitors, err := glfw.GetMonitors()
+	check("GetMonitors: no error", err == nil, fmt.Sprintf("%v", err))
+	// CI runners have at least one virtual display.
+	check("GetMonitors: at least one monitor", len(monitors) > 0, fmt.Sprintf("n=%d", len(monitors)))
+
 	pm := glfw.GetPrimaryMonitor()
-	check("GetPrimaryMonitor: no panic (nil expected in stub)", pm == nil, "")
+	check("GetPrimaryMonitor: non-nil", pm != nil, "")
+	if pm != nil {
+		check("GetPrimaryMonitor: name non-empty", pm.GetName() != "", pm.GetName())
+		vm := pm.GetVideoMode()
+		check("GetPrimaryMonitor: current video mode non-nil", vm != nil, "")
+		if vm != nil {
+			check("VideoMode width > 0", vm.Width > 0, fmt.Sprintf("w=%d", vm.Width))
+			check("VideoMode height > 0", vm.Height > 0, fmt.Sprintf("h=%d", vm.Height))
+		}
+		vms := pm.GetVideoModes()
+		check("GetVideoModes: non-empty", len(vms) > 0, fmt.Sprintf("n=%d", len(vms)))
+	}
 }
 
 func testCallbacks() {
