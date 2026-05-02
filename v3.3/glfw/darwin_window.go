@@ -126,6 +126,17 @@ func CreateWindow(width, height int, title string, monitor, share *Monitor) (*Wi
 	contentView := objc.ID(darwinViewClass).Send(selAlloc).Send(
 		selInitWithFrame, rect)
 	nsWin.Send(selSetContentView, contentView)
+
+	// Make the view layer-backed and attach a CAMetalLayer.
+	// Required for Vulkan surface creation; also compatible with NSOpenGLContext.
+	// CAMetalLayer lives in QuartzCore, pulled in by AppKit via Cocoa.framework.
+	var metalLayerID objc.ID
+	contentView.Send(selSetWantsLayer, true)
+	if caml := objc.ID(objc.GetClass("CAMetalLayer")).Send(selNew); caml != 0 {
+		contentView.Send(selSetLayer, caml)
+		metalLayerID = caml
+	}
+
 	contentView.Send(selRelease)
 
 	// Attach the window delegate.
@@ -134,7 +145,11 @@ func CreateWindow(width, height int, title string, monitor, share *Monitor) (*Wi
 	delegate.Send(selRelease)
 
 	// Build the *Window.
-	w := &Window{handle: uintptr(nsWin), title: title}
+	w := &Window{
+		handle:     uintptr(nsWin),
+		title:      title,
+		metalLayer: uintptr(metalLayerID),
+	}
 
 	// Register in the global map so delegate callbacks can find it.
 	windowByHandle.Store(uintptr(nsWin), w)

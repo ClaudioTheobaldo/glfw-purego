@@ -653,21 +653,3 @@ func eglSwapBuffersWindow(_ *Window)           {}
 func eglSwapIntervalNow(_ int)                 {}
 func eglGetProcAddr(_ string) unsafe.Pointer  { return nil }
 
-// ── Vulkan ────────────────────────────────────────────────────────────────────
-// Phase G will replace these with MoltenVK + VK_EXT_metal_surface calls.
-
-// VulkanSupported returns true if a Vulkan loader is available.
-func VulkanSupported() bool { return false }
-
-// GetRequiredInstanceExtensions returns the Vulkan extensions required for surface creation.
-func GetRequiredInstanceExtensions() []string {
-	if !VulkanSupported() {
-		return nil
-	}
-	return []string{"VK_KHR_surface", "VK_EXT_metal_surface"}
-}
-
-// CreateWindowSurface creates a VkSurfaceKHR for this window via MoltenVK.
-func (w *Window) CreateWindowSurface(_, _ unsafe.Pointer) (unsafe.Pointer, error) {
-	return nil, fmt.Errorf("glfw: Vulkan surface creation not yet implemented on macOS")
-}

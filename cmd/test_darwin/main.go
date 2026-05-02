@@ -117,9 +117,26 @@ func testInitHints() {
 func testFeatureQueries() {
 	fmt.Println("── Feature queries ──────────────────────────────────")
 	supported := glfw.RawMouseMotionSupported()
-	// Stub returns false; real macOS implementation will return true via IOHIDManager.
 	check("RawMouseMotionSupported: ran without panic", true,
 		fmt.Sprintf("result=%v", supported))
+}
+
+func testVulkan() {
+	fmt.Println("── Vulkan ───────────────────────────────────────────")
+	// MoltenVK is not installed on stock CI runners, so VulkanSupported may
+	// be false — that is acceptable.  We only assert no panic and correct
+	// behaviour when the loader is absent.
+	vs := glfw.VulkanSupported()
+	check("VulkanSupported: ran without panic", true,
+		fmt.Sprintf("result=%v", vs))
+	exts := glfw.GetRequiredInstanceExtensions()
+	if vs {
+		check("GetRequiredInstanceExtensions: 2 extensions when supported",
+			len(exts) == 2, fmt.Sprintf("%v", exts))
+	} else {
+		check("GetRequiredInstanceExtensions: nil when unsupported",
+			exts == nil, fmt.Sprintf("%v", exts))
+	}
 }
 
 func testMonitors() {
@@ -226,6 +243,7 @@ func main() {
 	testPollEvents()
 	testInitHints()
 	testFeatureQueries()
+	testVulkan()
 	testMonitors()
 	testCallbacks()
 	testWindow()
