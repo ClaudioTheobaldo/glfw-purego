@@ -139,6 +139,15 @@ func CreateWindow(width, height int, title string, monitor, share *Monitor) (*Wi
 	// Register in the global map so delegate callbacks can find it.
 	windowByHandle.Store(uintptr(nsWin), w)
 
+	// Create an NSOpenGLContext if OpenGL was requested.
+	// On headless CI runners context creation may return 0 — that is non-fatal;
+	// the window is still usable for non-rendering tests.
+	if ClientAPI(h[ClientAPIs]) == OpenGLAPI {
+		if ctx := createNSGLContext(h, contentView); ctx != 0 {
+			w.nsglContext = uintptr(ctx)
+		}
+	}
+
 	// Apply fullscreen mode if a monitor was supplied.
 	if monitor != nil {
 		w.fsMonitor = monitor
@@ -388,10 +397,9 @@ func (w *Window) RequestAttention() {
 // ── OpenGL context ────────────────────────────────────────────────────────────
 
 // MakeContextCurrent makes this window's OpenGL context current on this thread.
-// Phase C fills nsglContext; until then only the tracking variable is updated.
 func (w *Window) MakeContextCurrent() {
 	if w.nsglContext != 0 {
-		objc.ID(w.nsglContext).Send(objc.RegisterName("makeCurrentContext"))
+		objc.ID(w.nsglContext).Send(selNSGLMakeCurrentContext)
 	}
 	darwinCurrentWindow = w
 }
@@ -399,7 +407,7 @@ func (w *Window) MakeContextCurrent() {
 // SwapBuffers swaps the front and back buffers of the window.
 func (w *Window) SwapBuffers() {
 	if w.nsglContext != 0 {
-		objc.ID(w.nsglContext).Send(objc.RegisterName("flushBuffer"))
+		objc.ID(w.nsglContext).Send(selNSGLFlushBuffer)
 	}
 }
 

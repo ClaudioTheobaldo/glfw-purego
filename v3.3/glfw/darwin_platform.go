@@ -297,9 +297,9 @@ func nsWindowDidResize(self objc.ID, _cmd objc.SEL, notification objc.ID) {
 	content := objc.Send[NSRect](nswin, selContentRectForFrameRect, frame)
 	width := int(content.Size.Width)
 	height := int(content.Size.Height)
-	// Notify NSOpenGLContext of resize (Phase C fills nsglContext).
+	// Notify NSOpenGLContext of resize so it stays in sync with the view.
 	if w.nsglContext != 0 {
-		objc.ID(w.nsglContext).Send(objc.RegisterName("update"))
+		objc.ID(w.nsglContext).Send(selNSGLUpdate)
 	}
 	if w.fSizeHolder != nil {
 		w.fSizeHolder(w, width, height)
@@ -664,21 +664,28 @@ func GetCurrentContext() *Window { return darwinCurrentWindow }
 
 // DetachCurrentContext removes any current OpenGL context from this thread.
 func DetachCurrentContext() {
-	if darwinCurrentWindow != nil {
-		// Phase C: objc.ID(darwinCurrentWindow.nsglContext).Send(selClearCurrentContext)
+	if darwinCurrentWindow != nil && darwinCurrentWindow.nsglContext != 0 {
+		// clearCurrentContext is a class method on NSOpenGLContext.
+		objc.ID(objc.GetClass("NSOpenGLContext")).Send(selNSGLClearCurrentContext)
 	}
 	darwinCurrentWindow = nil
 }
 
 // SwapInterval sets the minimum number of video frame periods per buffer swap.
-func SwapInterval(_ int) {}
+func SwapInterval(interval int) {
+	if darwinCurrentWindow == nil || darwinCurrentWindow.nsglContext == 0 {
+		return
+	}
+	darwinSwapInterval(objc.ID(darwinCurrentWindow.nsglContext), interval)
+}
 
-// GetProcAddress returns the address of the named OpenGL symbol.
-// Phase C will implement this via dlsym on the OpenGL framework.
-func GetProcAddress(_ string) unsafe.Pointer { return nil }
+// GetProcAddress returns the address of the named OpenGL symbol via dlsym.
+func GetProcAddress(name string) unsafe.Pointer { return darwinGetProcAddress(name) }
 
 // ExtensionSupported returns true if the named OpenGL extension is available.
-func ExtensionSupported(_ string) bool { return false }
+// Checks via dlsym: works for function-name queries; extension string queries
+// require an active context (not yet implemented).
+func ExtensionSupported(name string) bool { return darwinGetProcAddress(name) != nil }
 
 // ── EGL helpers (called from shared context paths) ────────────────────────────
 
