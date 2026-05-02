@@ -52,9 +52,10 @@ jobs:
           [ -n "${{ matrix.tags }}" ] && FLAGS="-tags ${{ matrix.tags }}"
           # Root module (cmd/ programs) + each versioned sub-module.
           # Examples are excluded: they need a separate gl-purego checkout.
+          # Note: -C must be the first flag on the command line.
           go build $FLAGS ./...
           for mod in v3.3/glfw v3.0/glfw v3.1/glfw v3.2/glfw v3.4/glfw; do
-            go build $FLAGS -C "$mod" ./...
+            go build -C "$mod" $FLAGS ./...
           done
 
       - name: vet
@@ -68,7 +69,7 @@ jobs:
           [ -n "${{ matrix.tags }}" ] && FLAGS="-tags ${{ matrix.tags }}"
           go vet $FLAGS ./...
           for mod in v3.3/glfw v3.0/glfw v3.1/glfw v3.2/glfw v3.4/glfw; do
-            go vet $FLAGS -C "$mod" ./...
+            go vet -C "$mod" $FLAGS ./...
           done
 
   # ── Linux X11 smoke test (real runtime) ───────────────────────────────────
@@ -119,16 +120,17 @@ jobs:
       - name: Run smoke test (headless Weston)
         env:
           GOWORK: "off"
+          XDG_RUNTIME_DIR: /tmp/wayland-runtime
         run: |
+          mkdir -p /tmp/wayland-runtime
           weston --backend=headless --no-config &
           WESTON_PID=$!
-          for i in $(seq 1 20); do
-            [ -S "$XDG_RUNTIME_DIR/wayland-0" ] || \
-            [ -S "/run/user/$(id -u)/wayland-0" ] && break
+          # Wait for Weston to create its socket (up to 15 s)
+          for i in $(seq 1 30); do
+            if [ -S "/tmp/wayland-runtime/wayland-0" ]; then break; fi
             sleep 0.5
           done
-          WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-0} \
-            go run -tags wayland ./cmd/test_wayland
+          WAYLAND_DISPLAY=wayland-0 go run -tags wayland ./cmd/test_wayland
           kill $WESTON_PID || true
         timeout-minutes: 3
 

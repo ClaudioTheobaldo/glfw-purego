@@ -32,13 +32,17 @@ var (
 	wlDisplayPrepareRead     func(display uintptr) int32
 	wlDisplayReadEvents      func(display uintptr) int32
 	wlDisplayCancelRead      func(display uintptr)
-	wlDisplayGetRegistry     func(display uintptr) uintptr
-	wlProxyAddListener       func(proxy, listener, data uintptr) int32
-	wlProxyGetId             func(proxy uintptr) uint32
-	wlProxyGetVersion        func(proxy uintptr) uint32
-	wlProxyDestroy           func(proxy uintptr)
-	wlProxyMarshalFlags      func(proxy uintptr, opcode uint32, iface uintptr,
+	wlProxyAddListener           func(proxy, listener, data uintptr) int32
+	wlProxyGetId                 func(proxy uintptr) uint32
+	wlProxyGetVersion            func(proxy uintptr) uint32
+	wlProxyDestroy               func(proxy uintptr)
+	wlProxyMarshalFlags          func(proxy uintptr, opcode uint32, iface uintptr,
 		version, flags uint32, args ...uintptr) uintptr
+	// wl_proxy_marshal_constructor is the low-level function underlying
+	// wl_display_get_registry (and similar protocol inlines).  Those inlines
+	// are static in wayland-client-protocol.h and therefore NOT exported from
+	// the .so — we must reimplement them here via this exported symbol.
+	wlProxyMarshalConstructor func(proxy uintptr, opcode uint32, iface uintptr, args ...uintptr) uintptr
 
 	// Built-in libwayland interface descriptors
 	wlCompositorIfaceAddr uintptr // &wl_compositor_interface
@@ -76,12 +80,12 @@ func loadWaylandClient() error {
 		purego.RegisterLibFunc(&wlDisplayPrepareRead, wlClientHandle, "wl_display_prepare_read")
 		purego.RegisterLibFunc(&wlDisplayReadEvents, wlClientHandle, "wl_display_read_events")
 		purego.RegisterLibFunc(&wlDisplayCancelRead, wlClientHandle, "wl_display_cancel_read")
-		purego.RegisterLibFunc(&wlDisplayGetRegistry, wlClientHandle, "wl_display_get_registry")
 		purego.RegisterLibFunc(&wlProxyAddListener, wlClientHandle, "wl_proxy_add_listener")
 		purego.RegisterLibFunc(&wlProxyGetId, wlClientHandle, "wl_proxy_get_id")
 		purego.RegisterLibFunc(&wlProxyGetVersion, wlClientHandle, "wl_proxy_get_version")
 		purego.RegisterLibFunc(&wlProxyDestroy, wlClientHandle, "wl_proxy_destroy")
 		purego.RegisterLibFunc(&wlProxyMarshalFlags, wlClientHandle, "wl_proxy_marshal_flags")
+		purego.RegisterLibFunc(&wlProxyMarshalConstructor, wlClientHandle, "wl_proxy_marshal_constructor")
 
 		wlCompositorIfaceAddr, _ = purego.Dlsym(wlClientHandle, "wl_compositor_interface")
 		wlSeatIfaceAddr, _ = purego.Dlsym(wlClientHandle, "wl_seat_interface")
@@ -97,6 +101,15 @@ func loadWaylandClient() error {
 		wlRegistryIfaceAddr, _ = purego.Dlsym(wlClientHandle, "wl_registry_interface")
 	})
 	return wlClientErr
+}
+
+// wlDisplayGetRegistry reimplements the static inline wl_display_get_registry
+// from wayland-client-protocol.h.  That inline is not exported from the .so,
+// so we call the underlying wl_proxy_marshal_constructor directly.
+// WL_DISPLAY_GET_REGISTRY is opcode 1 in the wl_display interface.
+func wlDisplayGetRegistry(display uintptr) uintptr {
+	const WL_DISPLAY_GET_REGISTRY = 1
+	return wlProxyMarshalConstructor(display, WL_DISPLAY_GET_REGISTRY, wlRegistryIfaceAddr, 0)
 }
 
 // ── libwayland-egl ────────────────────────────────────────────────────────────
