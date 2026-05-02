@@ -1,0 +1,146 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  # ── Build verification (no hardware required) ──────────────────────────────
+
+  build:
+    name: Build (${{ matrix.goos }}/${{ matrix.goarch }}${{ matrix.tags && format(' tags={0}', matrix.tags) || '' }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux X11
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          # Linux Wayland
+          - goos: linux
+            goarch: amd64
+            tags: wayland
+          - goos: linux
+            goarch: arm64
+            tags: wayland
+          # Windows
+          - goos: windows
+            goarch: amd64
+          - goos: windows
+            goarch: arm64
+          # macOS
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          TAGS="${{ matrix.tags }}"
+          if [ -n "$TAGS" ]; then
+            go build -tags "$TAGS" ./...
+          else
+            go build ./...
+          fi
+
+      - name: vet
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          TAGS="${{ matrix.tags }}"
+          if [ -n "$TAGS" ]; then
+            go vet -tags "$TAGS" ./...
+          else
+            go vet ./...
+          fi
+
+  # ── Linux X11 smoke test (real runtime) ───────────────────────────────────
+
+  test-linux-x11:
+    name: Smoke test Linux X11
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Install X11 + GL libs
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            libx11-dev libxi-dev libxrandr-dev libxcursor-dev libxxf86vm-dev \
+            libgl1-mesa-dev xvfb
+
+      - name: Run smoke test (Xvfb)
+        run: |
+          Xvfb :99 -screen 0 1280x720x24 &
+          sleep 1
+          DISPLAY=:99 go run ./cmd/test_linux
+        timeout-minutes: 2
+
+  # ── Linux Wayland smoke test (real runtime) ────────────────────────────────
+
+  test-linux-wayland:
+    name: Smoke test Linux Wayland
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Install Wayland + EGL libs
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            libwayland-dev libwayland-egl-backend-dev libegl1-mesa-dev \
+            libwayland-cursor0 weston
+
+      - name: Run smoke test (headless Weston)
+        run: |
+          # weston --backend=headless spawns a fully-functional Wayland compositor.
+          weston --backend=headless --no-config &
+          WESTON_PID=$!
+          # wait for the socket to appear
+          for i in $(seq 1 20); do
+            if [ -S "$XDG_RUNTIME_DIR/wayland-0" ] || [ -S "/run/user/$(id -u)/wayland-0" ]; then
+              break
+            fi
+            sleep 0.5
+          done
+          WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-0} \
+            go run -tags wayland ./cmd/test_wayland
+          kill $WESTON_PID || true
+        timeout-minutes: 3
+
+  # ── macOS smoke test (real runtime, no display needed for non-window APIs) ─
+
+  test-macos:
+    name: Smoke test macOS (non-window APIs)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Build and run headless smoke test
+        run: go run ./cmd/test_darwin
+        timeout-minutes: 2

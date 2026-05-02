@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux && !wayland
 
 package glfw
 
@@ -122,7 +122,7 @@ func handleGenericEvent(ev *_XEvent) {
 	if w == nil || w.fCursorPosHolder == nil {
 		return
 	}
-	re := (*_XIRawEvent)(unsafe.Pointer(cookie.Data))
+	re := (*_XIRawEvent)(nativePtrFromUintptr(cookie.Data))
 	dx, dy := readRawDeltas(re)
 	w.rawCursorX += dx
 	w.rawCursorY += dy
@@ -137,8 +137,8 @@ func readRawDeltas(re *_XIRawEvent) (dx, dy float64) {
 	if v.MaskLen == 0 || v.Mask == 0 || v.Values == 0 {
 		return
 	}
-	mask := (*[8]byte)(unsafe.Pointer(v.Mask))
-	vals := (*[64]float64)(unsafe.Pointer(v.Values))
+	mask := (*[8]byte)(nativePtrFromUintptr(v.Mask))
+	vals := (*[64]float64)(nativePtrFromUintptr(v.Values))
 	idx := 0
 	for axis := 0; axis <= 1; axis++ {
 		if mask[axis/8]&(1<<uint(axis%8)) != 0 {

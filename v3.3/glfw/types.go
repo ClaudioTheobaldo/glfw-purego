@@ -380,8 +380,10 @@ const (
 
 // Cursor is an opaque cursor object created by CreateCursor or CreateStandardCursor.
 type Cursor struct {
-	handle uintptr // platform-specific handle (HCURSOR on Windows)
-	system bool    // true = system cursor, must not be destroyed
+	handle uintptr // HCURSOR on Windows; wl_cursor_image* on Wayland (system); wl_buffer* (custom)
+	system bool    // true = owned by system/theme, must not be individually destroyed
+	// Wayland-only hotspot coordinates (zero on Windows / X11).
+	wlHotX, wlHotY int32
 }
 
 // Platform identifies the underlying window system (GLFW 3.4).

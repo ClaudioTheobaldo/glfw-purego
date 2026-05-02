@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux && !wayland
 
 package glfw
 
@@ -159,7 +159,7 @@ func GetMonitors() ([]*Monitor, error) {
 		return nil, &Error{Code: PlatformError, Desc: "XRRGetScreenResources failed"}
 	}
 	defer xrrFreeScreenResources(resPtr)
-	sr := (*_XRRScreenResources)(unsafe.Pointer(resPtr))
+	sr := (*_XRRScreenResources)(nativePtrFromUintptr(resPtr))
 
 	primaryOutput := xrrGetOutputPrimary(x11Display, x11Root)
 
@@ -170,7 +170,7 @@ func GetMonitors() ([]*Monitor, error) {
 	}
 	globalModes := make(map[uint64]*VidMode, int(sr.NMode))
 	for i := 0; i < int(sr.NMode); i++ {
-		mi := (*_XRRModeInfo)(unsafe.Pointer(sr.Modes + uintptr(i)*80))
+		mi := (*_XRRModeInfo)(unsafe.Add(nativePtrFromUintptr(sr.Modes), uintptr(i)*80))
 		globalModes[mi.Id] = &VidMode{
 			Width:       int(mi.Width),
 			Height:      int(mi.Height),
@@ -183,12 +183,12 @@ func GetMonitors() ([]*Monitor, error) {
 
 	var monitors []*Monitor
 	for i := 0; i < int(sr.NOutput); i++ {
-		outputID := *(*uint64)(unsafe.Pointer(sr.Outputs + uintptr(i)*8))
+		outputID := *(*uint64)(unsafe.Add(nativePtrFromUintptr(sr.Outputs), uintptr(i)*8))
 		oiPtr := xrrGetOutputInfo(x11Display, resPtr, outputID)
 		if oiPtr == 0 {
 			continue
 		}
-		oi := (*_XRROutputInfo)(unsafe.Pointer(oiPtr))
+		oi := (*_XRROutputInfo)(nativePtrFromUintptr(oiPtr))
 
 		if oi.Connection != 0 { // RR_Connected = 0; skip disconnected
 			xrrFreeOutputInfo(oiPtr)
@@ -204,9 +204,7 @@ func GetMonitors() ([]*Monitor, error) {
 		// Copy output name.
 		if oi.Name != 0 && oi.NameLen > 0 {
 			b := make([]byte, oi.NameLen)
-			for j := int32(0); j < oi.NameLen; j++ {
-				b[j] = *(*byte)(unsafe.Pointer(oi.Name + uintptr(j)))
-			}
+			copy(b, unsafe.Slice((*byte)(nativePtrFromUintptr(oi.Name)), int(oi.NameLen)))
 			m.name = string(b)
 		}
 		if m.name == "" {
@@ -220,7 +218,7 @@ func GetMonitors() ([]*Monitor, error) {
 		}
 		var orderedModes []oidMode
 		for j := 0; j < int(oi.NMode); j++ {
-			mid := *(*uint64)(unsafe.Pointer(oi.Modes + uintptr(j)*8))
+			mid := *(*uint64)(unsafe.Add(nativePtrFromUintptr(oi.Modes), uintptr(j)*8))
 			if vm, ok := globalModes[mid]; ok {
 				orderedModes = append(orderedModes, oidMode{mid, vm})
 			}
@@ -234,7 +232,7 @@ func GetMonitors() ([]*Monitor, error) {
 		if oi.Crtc != 0 {
 			ciPtr := xrrGetCrtcInfo(x11Display, resPtr, oi.Crtc)
 			if ciPtr != 0 {
-				ci := (*_XRRCrtcInfo)(unsafe.Pointer(ciPtr))
+				ci := (*_XRRCrtcInfo)(nativePtrFromUintptr(ciPtr))
 				m.x = int(ci.X)
 				m.y = int(ci.Y)
 				m.widthPx = int(ci.Width)

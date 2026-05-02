@@ -18,6 +18,32 @@ Rather than wrapping the GLFW C library, this package reimplements the GLFW Go A
 | Linux X11 (amd64, arm64) | XGB + GLX | 🚧 |
 | Linux Wayland | Wayland + EGL | 🚧 |
 
+## Linux build tags
+
+The Linux backend defaults to **X11**.  To build against the Wayland backend instead, pass `-tags wayland` to every `go build`, `go run`, and `go test` invocation:
+
+```sh
+go build -tags wayland ./...
+go run  -tags wayland .
+go test -tags wayland ./...
+```
+
+The tag selects the backend at compile time; the resulting binary only links against the chosen display-server libraries (`libwayland-client.so.0` + `libwayland-egl.so.1` instead of `libX11.so.6`).
+
+### Wayland limitations
+
+| Feature | Status |
+|---------|--------|
+| `GetPos` / `SetPos` | Always (0, 0) — xdg_toplevel has no position request |
+| `Hide` | No-op — use `Iconify` or `Destroy` |
+| `SetCursorPos` | No-op — clients cannot warp the pointer |
+| `RawMouseMotion` | Always false — zwp_relative_pointer not wired yet |
+| Custom cursors (`CreateCursor`) | Stub — wl_shm path not implemented |
+| Gamma ramps | No-op — not exposed by Wayland |
+| Window opacity | No-op — compositor-side only |
+
+---
+
 ## Usage
 
 ```go

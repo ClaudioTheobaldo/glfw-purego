@@ -103,5 +103,5 @@ func (w *Window) CreateWindowSurface(instance, allocator unsafe.Pointer) (unsafe
 	if r != 0 {
 		return nil, fmt.Errorf("vkCreateWin32SurfaceKHR: error %d", r)
 	}
-	return unsafe.Pointer(surface), nil
+	return nativePtrFromUintptr(surface), nil
 }

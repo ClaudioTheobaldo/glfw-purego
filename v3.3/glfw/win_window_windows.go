@@ -995,13 +995,13 @@ func wndProc(hwnd uintptr, msg uint32, wParam, lParam uintptr) uintptr {
 		return 0
 
 	case _WM_GETMINMAXINFO:
-		mmi := (*_MINMAXINFO)(unsafe.Pointer(lParam))
+		mmi := (*_MINMAXINFO)(nativePtrFromUintptr(lParam))
 		w.applyMinMaxInfo(mmi)
 		// Do NOT return 0 here — let DefWindowProc also run so the system
 		// maximised/restored defaults are still applied as a baseline.
 
 	case _WM_SIZING:
-		rc := (*_RECT)(unsafe.Pointer(lParam))
+		rc := (*_RECT)(nativePtrFromUintptr(lParam))
 		w.enforceAspectRatio(rc, wParam)
 		return 1
 

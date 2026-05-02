@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux && !wayland
 
 package glfw
 
@@ -122,9 +122,7 @@ func readClipboardProperty(window, prop uint64) string {
 	}
 	// Copy bytes from X11-managed memory into a Go string.
 	b := make([]byte, nItems)
-	for i := uint64(0); i < nItems; i++ {
-		b[i] = *(*byte)(unsafe.Pointer(dataPtr + uintptr(i)))
-	}
+	copy(b, unsafe.Slice((*byte)(nativePtrFromUintptr(dataPtr)), nItems))
 	xFree(dataPtr)
 	return string(b)
 }

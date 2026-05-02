@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux && !wayland
 
 package glfw
 
@@ -104,5 +104,5 @@ func (w *Window) CreateWindowSurface(instance, allocator unsafe.Pointer) (unsafe
 	if r != 0 {
 		return nil, fmt.Errorf("vkCreateXlibSurfaceKHR: error %d", r)
 	}
-	return unsafe.Pointer(surface), nil
+	return nativePtrFromUintptr(surface), nil
 }

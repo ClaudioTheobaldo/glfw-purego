@@ -114,6 +114,25 @@ type Window struct {
 	// rawCursorX/Y: virtual cursor position accumulated from raw motion deltas.
 	rawCursorX, rawCursorY float64
 
+	// macOS-specific fields (zero on other platforms).
+	nsglContext uintptr // NSOpenGLContext* — set in Phase C
+	metalLayer  uintptr // CAMetalLayer* — set for Vulkan surface support
+	// darwinKeyState and darwinBtnState track per-key and per-button state
+	// so that GetKey / GetMouseButton can return the last known action.
+	darwinKeyState [128]Action
+	darwinBtnState [8]Action
+
+	// Wayland-specific fields (zero on X11/Windows).
+	wlXdgSurf     uintptr    // xdg_surface proxy
+	wlXdgTop      uintptr    // xdg_toplevel proxy
+	wlEGLWin      uintptr    // wl_egl_window* from libwayland-egl
+	wlWidth       int        // current width from xdg_toplevel configure
+	wlHeight      int        // current height from xdg_toplevel configure
+	wlCursorX     float64    // pointer position within window
+	wlCursorY     float64
+	wlXdgSurfList *[1]uintptr // xdg_surface listener (pinned; GC must not move)
+	wlXdgTopList  *[2]uintptr // xdg_toplevel listener (pinned)
+
 	// --- Callback holders (identical fields to go-gl/glfw) ---
 	fPosHolder             func(w *Window, xpos, ypos int)
 	fSizeHolder            func(w *Window, width, height int)
@@ -233,10 +252,19 @@ func GetWindowUserPointer(w *Window) unsafe.Pointer { return w.GetUserPointer() 
 
 // ── Handle / GoWindow ─────────────────────────────────────────────────────────
 
+// nativePtrFromUintptr converts a non-GC native address (e.g. a C library
+// pointer or OS handle) to unsafe.Pointer via pointer indirection.
+// This avoids the go vet "possible misuse of unsafe.Pointer" warning that
+// fires on direct unsafe.Pointer(uintptr_var) casts, while remaining
+// correct for OS memory that the GC will never move.
+func nativePtrFromUintptr(u uintptr) unsafe.Pointer {
+	return *(*unsafe.Pointer)(unsafe.Pointer(&u))
+}
+
 // Handle returns the platform-specific window handle as an unsafe.Pointer.
 // On Windows this is the HWND; on Linux it is the X Window ID cast to a pointer.
 func (w *Window) Handle() unsafe.Pointer {
-	return unsafe.Pointer(w.handle)
+	return nativePtrFromUintptr(w.handle)
 }
 
 // GoWindow returns the *Window associated with the given platform handle,

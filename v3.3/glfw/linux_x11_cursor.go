@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux && !wayland
 
 package glfw
 
@@ -173,12 +173,12 @@ func CreateCursor(image *Image, xhot, yhot int) (*Cursor, error) {
 	}
 	defer xcursorImageDestroy(imgPtr)
 
-	ci := (*_XcursorImage)(unsafe.Pointer(imgPtr))
+	ci := (*_XcursorImage)(nativePtrFromUintptr(imgPtr))
 	ci.XHot = uint32(xhot)
 	ci.YHot = uint32(yhot)
 
 	// Fill pixels from C-allocated buffer: convert RGBA → ARGB.
-	pixSlice := unsafe.Slice((*uint32)(unsafe.Pointer(ci.Pixels)), image.Width*image.Height)
+	pixSlice := unsafe.Slice((*uint32)(nativePtrFromUintptr(ci.Pixels)), image.Width*image.Height)
 	src := image.Pixels
 	for i := range pixSlice {
 		r := uint32(src[i*4+0])

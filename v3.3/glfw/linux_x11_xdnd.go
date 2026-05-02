@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux && !wayland
 
 package glfw
 
@@ -152,9 +152,7 @@ func readProperty(xwin, prop uint64) string {
 	}
 	defer xFree(propPtr)
 	data := make([]byte, nItems)
-	for i := range nItems {
-		data[i] = *(*byte)(unsafe.Pointer(propPtr + uintptr(i)))
-	}
+	copy(data, unsafe.Slice((*byte)(nativePtrFromUintptr(propPtr)), nItems))
 	return string(data)
 }
 

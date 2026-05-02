@@ -52,15 +52,6 @@ func GetProcAddress(name string) unsafe.Pointer {
 	return nil
 }
 
-// nativePtrFromUintptr converts a non-GC native function-pointer address
-// (e.g. a Windows DLL export) to unsafe.Pointer via pointer indirection.
-// This avoids the go vet "possible misuse of unsafe.Pointer" warning that
-// fires on direct unsafe.Pointer(uintptr_var) casts, while remaining
-// correct for OS memory that the GC will never move.
-func nativePtrFromUintptr(u uintptr) unsafe.Pointer {
-	return *(*unsafe.Pointer)(unsafe.Pointer(&u))
-}
-
 // SwapInterval sets the minimum number of video frame periods per buffer swap.
 // Works for both WGL (desktop GL) and EGL (GLES via ANGLE) contexts.
 func SwapInterval(interval int) {
