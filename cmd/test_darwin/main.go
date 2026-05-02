@@ -83,13 +83,14 @@ func testClipboard() {
 }
 
 func testJoystickStubs() {
-	fmt.Println("── Joystick stubs ───────────────────────────────────")
-	// All stubs: verify no panic and correct zero-values.
-	check("JoystickPresent(0) = false", !glfw.JoystickPresent(glfw.Joystick1), "")
-	check("GetJoystickAxes(0) = nil", glfw.GetJoystickAxes(glfw.Joystick1) == nil, "")
-	check("GetJoystickButtons(0) = nil", glfw.GetJoystickButtons(glfw.Joystick1) == nil, "")
-	check("GetJoystickName(0) = ''", glfw.GetJoystickName(glfw.Joystick1) == "", "")
-	check("JoystickIsGamepad(0) = false", !glfw.JoystickIsGamepad(glfw.Joystick1), "")
+	fmt.Println("── Joystick (no device connected on CI) ─────────────")
+	// CI runners have no physical gamepad; all slots should be empty.
+	check("JoystickPresent(0) = false (no device)", !glfw.JoystickPresent(glfw.Joystick1), "")
+	check("GetJoystickAxes(0) = nil (no device)", glfw.GetJoystickAxes(glfw.Joystick1) == nil, "")
+	check("GetJoystickButtons(0) = nil (no device)", glfw.GetJoystickButtons(glfw.Joystick1) == nil, "")
+	check("GetJoystickName(0) = '' (no device)", glfw.GetJoystickName(glfw.Joystick1) == "", "")
+	check("JoystickIsGamepad(0) = false (no device)", !glfw.JoystickIsGamepad(glfw.Joystick1), "")
+	check("GetGamepadState(0) = false (no device)", !glfw.GetGamepadState(glfw.Joystick1, &glfw.GamepadState{}), "")
 }
 
 func testPollEvents() {

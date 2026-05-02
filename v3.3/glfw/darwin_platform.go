@@ -453,6 +453,7 @@ func Init() error {
 		registerViewClass()
 		initCursorCG()
 		initMonitorCG()
+		initGameController()
 	})
 
 	// Snapshot the connected monitors for hotplug diffing.
@@ -479,6 +480,7 @@ func PollEvents() {
 	if !darwinInitialized {
 		return
 	}
+	pollJoysticks()
 	for {
 		// nextEventMatchingMask:untilDate:inMode:dequeue: with distantPast
 		// returns immediately if no event is pending.
@@ -601,39 +603,6 @@ func GetKeyScancode(key Key) int {
 
 // GetKeyName returns the localized name of a key. Darwin: returns empty string.
 func GetKeyName(_ Key, _ int) string { return "" }
-
-// ── Joystick ─────────────────────────────────────────────────────────────────
-// Phase F will replace these stubs with Game Controller framework calls.
-
-// JoystickPresent returns true if the given joystick slot is connected.
-func JoystickPresent(_ Joystick) bool { return false }
-
-// GetJoystickAxes returns normalised axis values in [-1, 1].
-func GetJoystickAxes(_ Joystick) []float32 { return nil }
-
-// GetJoystickButtons returns button press/release states.
-func GetJoystickButtons(_ Joystick) []Action { return nil }
-
-// GetJoystickHats returns hat (d-pad) states.
-func GetJoystickHats(_ Joystick) []JoystickHatState { return nil }
-
-// GetJoystickName returns the human-readable device name.
-func GetJoystickName(_ Joystick) string { return "" }
-
-// GetJoystickGUID returns the device GUID string.
-func GetJoystickGUID(_ Joystick) string { return "" }
-
-// JoystickIsGamepad returns true if the device qualifies as a full gamepad.
-func JoystickIsGamepad(_ Joystick) bool { return false }
-
-// GetGamepadName returns the gamepad device name.
-func GetGamepadName(joy Joystick) string { return GetJoystickName(joy) }
-
-// GetGamepadState fills state with the current gamepad snapshot.
-func GetGamepadState(_ Joystick, _ *GamepadState) bool { return false }
-
-// UpdateGamepadMappings accepts SDL-compatible mapping strings. No-op stub.
-func UpdateGamepadMappings(_ string) bool { return true }
 
 // SetJoystickCallback registers a callback for joystick connect/disconnect events.
 func SetJoystickCallback(cb func(joy Joystick, event PeripheralEvent)) {
