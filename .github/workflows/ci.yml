@@ -5,8 +5,15 @@ on:
     branches: [main, master]
   pull_request:
 
+# GOWORK=off is set on every step that calls the Go toolchain.
+# The go.work file lists example modules that depend on a separate
+# gl-purego checkout (not available in CI), so workspace mode would
+# fail trying to resolve that replace path.  With GOWORK=off each
+# module uses only its own go.mod, which only has local replace
+# directives that are always present (v3.3/glfw => ./v3.3/glfw etc.).
+
 jobs:
-  # ── Build verification (no hardware required) ──────────────────────────────
+  # ── Cross-platform build + vet ─────────────────────────────────────────────
 
   build:
     name: Build (${{ matrix.goos }}/${{ matrix.goarch }}${{ matrix.tags && format(' tags={0}', matrix.tags) || '' }})
@@ -16,27 +23,17 @@ jobs:
       matrix:
         include:
           # Linux X11
-          - goos: linux
-            goarch: amd64
-          - goos: linux
-            goarch: arm64
+          - { goos: linux,   goarch: amd64 }
+          - { goos: linux,   goarch: arm64 }
           # Linux Wayland
-          - goos: linux
-            goarch: amd64
-            tags: wayland
-          - goos: linux
-            goarch: arm64
-            tags: wayland
+          - { goos: linux,   goarch: amd64, tags: wayland }
+          - { goos: linux,   goarch: arm64, tags: wayland }
           # Windows
-          - goos: windows
-            goarch: amd64
-          - goos: windows
-            goarch: arm64
+          - { goos: windows, goarch: amd64 }
+          - { goos: windows, goarch: arm64 }
           # macOS
-          - goos: darwin
-            goarch: amd64
-          - goos: darwin
-            goarch: arm64
+          - { goos: darwin,  goarch: amd64 }
+          - { goos: darwin,  goarch: arm64 }
 
     steps:
       - uses: actions/checkout@v4
@@ -49,26 +46,30 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "0"
+          GOWORK: "off"
         run: |
-          TAGS="${{ matrix.tags }}"
-          if [ -n "$TAGS" ]; then
-            go build -tags "$TAGS" ./...
-          else
-            go build ./...
-          fi
+          FLAGS=""
+          [ -n "${{ matrix.tags }}" ] && FLAGS="-tags ${{ matrix.tags }}"
+          # Root module (cmd/ programs) + each versioned sub-module.
+          # Examples are excluded: they need a separate gl-purego checkout.
+          go build $FLAGS ./...
+          for mod in v3.3/glfw v3.0/glfw v3.1/glfw v3.2/glfw v3.4/glfw; do
+            go build $FLAGS -C "$mod" ./...
+          done
 
       - name: vet
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "0"
+          GOWORK: "off"
         run: |
-          TAGS="${{ matrix.tags }}"
-          if [ -n "$TAGS" ]; then
-            go vet -tags "$TAGS" ./...
-          else
-            go vet ./...
-          fi
+          FLAGS=""
+          [ -n "${{ matrix.tags }}" ] && FLAGS="-tags ${{ matrix.tags }}"
+          go vet $FLAGS ./...
+          for mod in v3.3/glfw v3.0/glfw v3.1/glfw v3.2/glfw v3.4/glfw; do
+            go vet $FLAGS -C "$mod" ./...
+          done
 
   # ── Linux X11 smoke test (real runtime) ───────────────────────────────────
 
@@ -89,6 +90,8 @@ jobs:
             libgl1-mesa-dev xvfb
 
       - name: Run smoke test (Xvfb)
+        env:
+          GOWORK: "off"
         run: |
           Xvfb :99 -screen 0 1280x720x24 &
           sleep 1
@@ -114,15 +117,14 @@ jobs:
             libwayland-cursor0 weston
 
       - name: Run smoke test (headless Weston)
+        env:
+          GOWORK: "off"
         run: |
-          # weston --backend=headless spawns a fully-functional Wayland compositor.
           weston --backend=headless --no-config &
           WESTON_PID=$!
-          # wait for the socket to appear
           for i in $(seq 1 20); do
-            if [ -S "$XDG_RUNTIME_DIR/wayland-0" ] || [ -S "/run/user/$(id -u)/wayland-0" ]; then
-              break
-            fi
+            [ -S "$XDG_RUNTIME_DIR/wayland-0" ] || \
+            [ -S "/run/user/$(id -u)/wayland-0" ] && break
             sleep 0.5
           done
           WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-0} \
@@ -130,10 +132,10 @@ jobs:
           kill $WESTON_PID || true
         timeout-minutes: 3
 
-  # ── macOS smoke test (real runtime, no display needed for non-window APIs) ─
+  # ── macOS smoke test (headless — no display needed for non-window APIs) ────
 
   test-macos:
-    name: Smoke test macOS (non-window APIs)
+    name: Smoke test macOS
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -141,6 +143,8 @@ jobs:
         with:
           go-version: "1.22"
 
-      - name: Build and run headless smoke test
+      - name: Run headless smoke test
+        env:
+          GOWORK: "off"
         run: go run ./cmd/test_darwin
         timeout-minutes: 2
