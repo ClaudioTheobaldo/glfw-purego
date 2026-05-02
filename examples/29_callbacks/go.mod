@@ -2,9 +2,9 @@ module github.com/ClaudioTheobaldo/glfw-purego/examples/29_callbacks
 
 go 1.25.0
 
-replace github.com/ClaudioTheobaldo/glfw-purego => ../..
+replace github.com/ClaudioTheobaldo/glfw-purego/v3.3/glfw => ../../v3.3/glfw
 
-require github.com/ClaudioTheobaldo/glfw-purego v0.0.0-00010101000000-000000000000
+require github.com/ClaudioTheobaldo/glfw-purego/v3.3/glfw v0.0.0-00010101000000-000000000000
 
 require (
 	github.com/ebitengine/purego v0.8.2 // indirect

@@ -4,12 +4,12 @@ go 1.25.0
 
 replace (
 	github.com/ClaudioTheobaldo/gl-purego => ../../../gl-purego
-	github.com/ClaudioTheobaldo/glfw-purego => ../..
+	github.com/ClaudioTheobaldo/glfw-purego/v3.3/glfw => ../../v3.3/glfw
 )
 
 require (
 	github.com/ClaudioTheobaldo/gl-purego v0.0.0-00010101000000-000000000000
-	github.com/ClaudioTheobaldo/glfw-purego v0.0.0-00010101000000-000000000000
+	github.com/ClaudioTheobaldo/glfw-purego/v3.3/glfw v0.0.0-00010101000000-000000000000
 )
 
 require (

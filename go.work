@@ -1,0 +1,21 @@
+go 1.25.0
+
+use (
+	.
+	./examples/21_fullscreen
+	./examples/22_icon_attribs
+	./examples/23_cursors
+	./examples/24_joystick
+	./examples/25_size_constraints
+	./examples/26_opacity
+	./examples/27_attention
+	./examples/28_key_names
+	./examples/29_callbacks
+	./examples/30_timer
+	./examples/linux_smoke
+	./v3.0/glfw
+	./v3.1/glfw
+	./v3.2/glfw
+	./v3.3/glfw
+	./v3.4/glfw
+)
