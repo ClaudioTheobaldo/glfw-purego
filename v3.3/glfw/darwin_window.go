@@ -411,10 +411,6 @@ func (w *Window) SwapBuffers() {
 	}
 }
 
-// SetCursor sets the cursor shape for the window.
-// Phase E will implement NSCursor push/pop.
-func (w *Window) SetCursor(_ *Cursor) {}
-
 // ── Input mode ────────────────────────────────────────────────────────────────
 
 // GetInputMode returns the current value of the specified input mode.

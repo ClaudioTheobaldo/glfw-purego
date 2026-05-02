@@ -150,9 +150,8 @@ var (
 	nsDistantFuture    objc.ID  // [NSDate distantFuture]
 	darwinDelegateClass objc.Class
 
-	darwinMonitorCb     func(*Monitor, PeripheralEvent)
+	darwinMonitorCb      func(*Monitor, PeripheralEvent)
 	darwinCachedMonitors []*Monitor
-	darwinClipboard     string
 
 	darwinJoystickCb func(Joystick, PeripheralEvent)
 	darwinCurrentWindow *Window
@@ -603,15 +602,6 @@ func GetKeyScancode(key Key) int {
 // GetKeyName returns the localized name of a key. Darwin: returns empty string.
 func GetKeyName(_ Key, _ int) string { return "" }
 
-// ── Clipboard ─────────────────────────────────────────────────────────────────
-// Phase E will replace this in-memory stub with NSPasteboard calls.
-
-// SetClipboardString sets the system clipboard content.
-func SetClipboardString(s string) { darwinClipboard = s }
-
-// GetClipboardString returns the system clipboard content.
-func GetClipboardString() string { return darwinClipboard }
-
 // ── Joystick ─────────────────────────────────────────────────────────────────
 // Phase F will replace these stubs with Game Controller framework calls.
 
@@ -693,22 +683,6 @@ func eglMakeCurrentWindow(_ *Window)           {}
 func eglSwapBuffersWindow(_ *Window)           {}
 func eglSwapIntervalNow(_ int)                 {}
 func eglGetProcAddr(_ string) unsafe.Pointer  { return nil }
-
-// ── Cursor ────────────────────────────────────────────────────────────────────
-// Phase E will replace these with NSCursor calls.
-
-// CreateStandardCursor loads a system cursor by shape.
-func CreateStandardCursor(_ StandardCursorShape) (*Cursor, error) {
-	return &Cursor{system: true}, nil
-}
-
-// CreateCursor creates a cursor from an RGBA image. Stub returns a no-op cursor.
-func CreateCursor(_ *Image, _, _ int) (*Cursor, error) {
-	return &Cursor{}, nil
-}
-
-// DestroyCursor releases a cursor.
-func DestroyCursor(_ *Cursor) {}
 
 // ── Vulkan ────────────────────────────────────────────────────────────────────
 // Phase G will replace these with MoltenVK + VK_EXT_metal_surface calls.

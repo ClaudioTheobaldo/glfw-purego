@@ -608,6 +608,9 @@ func registerViewClass() {
 
 			// Tracking areas (keeps enter/exit working after resize)
 			{Cmd: objc.RegisterName("updateTrackingAreas"), Fn: nsViewUpdateTrackingAreas},
+
+			// Cursor rects (NSCursor support — Phase E)
+			{Cmd: objc.RegisterName("resetCursorRects"), Fn: nsViewResetCursorRects},
 		},
 	)
 	if err != nil {
