@@ -1,0 +1,224 @@
+//go:build darwin
+
+// test_darwin is a smoke test for the macOS backend.
+//
+// Unlike the X11 and Wayland tests this one is designed to run in a headless
+// CI environment — it only exercises APIs that work without a display server
+// (version, timer, joystick stubs, clipboard, proc-address).  Window creation
+// tests will be added once the Cocoa backend is implemented.
+//
+// Run: go run ./cmd/test_darwin   (from repo root)
+package main
+
+import (
+	"fmt"
+	"os"
+	"runtime"
+
+	glfw "github.com/ClaudioTheobaldo/glfw-purego/v3.3/glfw"
+)
+
+// ── tiny test harness ─────────────────────────────────────────────────────────
+
+var (
+	passed int
+	failed int
+)
+
+func check(label string, ok bool, extra string) {
+	if ok {
+		passed++
+		fmt.Printf("  PASS  %s\n", label)
+	} else {
+		failed++
+		if extra != "" {
+			fmt.Printf("  FAIL  %s  (%s)\n", label, extra)
+		} else {
+			fmt.Printf("  FAIL  %s\n", label)
+		}
+	}
+}
+
+// ── tests ─────────────────────────────────────────────────────────────────────
+
+func testVersion() {
+	fmt.Println("── Version ──────────────────────────────────────────")
+	major, minor, rev := glfw.GetVersion()
+	check("GetVersion returns 3.3.x",
+		major == 3 && minor == 3, fmt.Sprintf("got %d.%d.%d", major, minor, rev))
+	vs := glfw.GetVersionString()
+	check("GetVersionString non-empty", vs != "", vs)
+}
+
+func testTimer() {
+	fmt.Println("── Timer ────────────────────────────────────────────")
+	t0 := glfw.GetTime()
+	check("GetTime >= 0", t0 >= 0, fmt.Sprintf("%v", t0))
+	freq := glfw.GetTimerFrequency()
+	check("GetTimerFrequency > 0", freq > 0, fmt.Sprintf("%d", freq))
+	val := glfw.GetTimerValue()
+	check("GetTimerValue > 0", val > 0, fmt.Sprintf("%d", val))
+}
+
+func testSetTime() {
+	fmt.Println("── SetTime ──────────────────────────────────────────")
+	glfw.SetTime(10.0)
+	t := glfw.GetTime()
+	check("SetTime then GetTime >= 10.0", t >= 10.0, fmt.Sprintf("got %.3f", t))
+	glfw.SetTime(0)
+}
+
+func testClipboard() {
+	fmt.Println("── Clipboard ────────────────────────────────────────")
+	const text1 = "glfw-purego darwin clipboard test ✓"
+	const text2 = "second value"
+	glfw.SetClipboardString(text1)
+	got1 := glfw.GetClipboardString()
+	check("SetClipboardString / GetClipboardString round-trip",
+		got1 == text1, fmt.Sprintf("got %q", got1))
+	glfw.SetClipboardString(text2)
+	got2 := glfw.GetClipboardString()
+	check("Second clipboard value round-trip",
+		got2 == text2, fmt.Sprintf("got %q", got2))
+}
+
+func testJoystickStubs() {
+	fmt.Println("── Joystick stubs ───────────────────────────────────")
+	// All stubs: verify no panic and correct zero-values.
+	check("JoystickPresent(0) = false", !glfw.JoystickPresent(glfw.Joystick1), "")
+	check("GetJoystickAxes(0) = nil", glfw.GetJoystickAxes(glfw.Joystick1) == nil, "")
+	check("GetJoystickButtons(0) = nil", glfw.GetJoystickButtons(glfw.Joystick1) == nil, "")
+	check("GetJoystickName(0) = ''", glfw.GetJoystickName(glfw.Joystick1) == "", "")
+	check("JoystickIsGamepad(0) = false", !glfw.JoystickIsGamepad(glfw.Joystick1), "")
+}
+
+func testPollEvents() {
+	fmt.Println("── PollEvents / WaitEventsTimeout ───────────────────")
+	// These are no-ops in the stub but must not panic.
+	glfw.PollEvents()
+	check("PollEvents: no panic", true, "")
+	glfw.WaitEventsTimeout(0.001)
+	check("WaitEventsTimeout: no panic", true, "")
+	glfw.PostEmptyEvent()
+	check("PostEmptyEvent: no panic", true, "")
+}
+
+func testInitHints() {
+	fmt.Println("── Hints ────────────────────────────────────────────")
+	// Stub — just verify no panic.
+	glfw.InitHint(glfw.Focused, 1)
+	glfw.WindowHintString(glfw.Focused, "value")
+	glfw.WindowHint(glfw.ContextVersionMajor, 3)
+	glfw.DefaultWindowHints()
+	check("Hint functions: no panic", true, "")
+}
+
+func testFeatureQueries() {
+	fmt.Println("── Feature queries ──────────────────────────────────")
+	supported := glfw.RawMouseMotionSupported()
+	// Stub returns false; real macOS implementation will return true via IOHIDManager.
+	check("RawMouseMotionSupported: ran without panic", true,
+		fmt.Sprintf("result=%v", supported))
+}
+
+func testMonitors() {
+	fmt.Println("── Monitors (stub) ──────────────────────────────────")
+	// The stub always returns nil / error; just verify no panic.
+	monitors, _ := glfw.GetMonitors()
+	check("GetMonitors: no panic", true, fmt.Sprintf("n=%d", len(monitors)))
+	pm := glfw.GetPrimaryMonitor()
+	check("GetPrimaryMonitor: no panic (nil expected in stub)", pm == nil, "")
+}
+
+func testCallbacks() {
+	fmt.Println("── Callbacks ────────────────────────────────────────")
+	glfw.SetMonitorCallback(func(_ *glfw.Monitor, _ glfw.PeripheralEvent) {})
+	check("SetMonitorCallback: no panic", true, "")
+	glfw.SetMonitorCallback(nil)
+
+	glfw.SetJoystickCallback(func(_ glfw.Joystick, _ glfw.PeripheralEvent) {})
+	check("SetJoystickCallback: no panic", true, "")
+	glfw.SetJoystickCallback(nil)
+}
+
+func testWindow() {
+	fmt.Println("── Window (Phase A) ─────────────────────────────────")
+	glfw.WindowHint(glfw.Visible, 0) // invisible — CI has no display
+	w, err := glfw.CreateWindow(320, 240, "smoke-test", nil, nil)
+	check("CreateWindow: no error", err == nil, fmt.Sprintf("%v", err))
+	if w == nil {
+		check("CreateWindow: non-nil *Window", false, "got nil")
+		return
+	}
+	check("CreateWindow: non-nil *Window", true, "")
+
+	// GetSize should return the requested dimensions.
+	width, height := w.GetSize()
+	check("GetSize matches requested width", width == 320, fmt.Sprintf("got %d", width))
+	check("GetSize matches requested height", height == 240, fmt.Sprintf("got %d", height))
+
+	// SetTitle must not panic.
+	w.SetTitle("updated title")
+	check("SetTitle: no panic", true, "")
+
+	// GetFramebufferSize must return positive values (may be 2× on Retina).
+	fbW, fbH := w.GetFramebufferSize()
+	check("GetFramebufferSize width > 0", fbW > 0, fmt.Sprintf("got %d", fbW))
+	check("GetFramebufferSize height > 0", fbH > 0, fmt.Sprintf("got %d", fbH))
+
+	// ShouldClose starts as false.
+	check("ShouldClose initially false", !w.ShouldClose(), "")
+	w.SetShouldClose(true)
+	check("ShouldClose after SetShouldClose(true)", w.ShouldClose(), "")
+
+	// PollEvents must not panic with a live window.
+	glfw.PollEvents()
+	check("PollEvents with window: no panic", true, "")
+
+	// PostEmptyEvent must not panic.
+	glfw.PostEmptyEvent()
+	check("PostEmptyEvent: no panic", true, "")
+
+	// WaitEventsTimeout with a very short timeout must not hang.
+	glfw.WaitEventsTimeout(0.001)
+	check("WaitEventsTimeout(1ms): no panic", true, "")
+
+	w.Destroy()
+	check("Destroy: no panic", true, "")
+
+	glfw.DefaultWindowHints() // restore defaults
+}
+
+// ── main ──────────────────────────────────────────────────────────────────────
+
+func main() {
+	runtime.LockOSThread()
+
+	fmt.Println("=== glfw-purego macOS smoke test (headless) ===")
+
+	// Init must succeed now that the Cocoa backend is implemented (Phase A+).
+	if err := glfw.Init(); err != nil {
+		fmt.Printf("FATAL glfw.Init() failed: %v\n", err)
+		os.Exit(1)
+	}
+	defer glfw.Terminate()
+	check("Init: no error", true, "")
+
+	testVersion()
+	testTimer()
+	testSetTime()
+	testClipboard()
+	testJoystickStubs()
+	testPollEvents()
+	testInitHints()
+	testFeatureQueries()
+	testMonitors()
+	testCallbacks()
+	testWindow()
+
+	fmt.Println()
+	fmt.Printf("Results: %d passed, %d failed\n", passed, failed)
+	if failed > 0 {
+		os.Exit(1)
+	}
+}
