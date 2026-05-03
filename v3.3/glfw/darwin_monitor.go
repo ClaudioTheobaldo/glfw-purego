@@ -52,6 +52,18 @@ var (
 // registration to prevent it from being garbage-collected.
 var darwinCGReconfigCBPtr uintptr
 
+// cgTryRegisterLibFunc registers a C function only when the symbol is present
+// in the library.  Unlike purego.RegisterLibFunc it does not panic on missing
+// symbols, which is necessary because several CGDisplayMode functions were
+// removed in macOS 15 Sequoia.
+func cgTryRegisterLibFunc(fptr interface{}, lib uintptr, name string) {
+	sym, err := purego.Dlsym(lib, name)
+	if err != nil || sym == 0 {
+		return // symbol absent on this macOS version — leave fptr nil
+	}
+	purego.RegisterFunc(fptr, sym)
+}
+
 // initMonitorCG loads CoreGraphics and CoreFoundation display functions.
 // Called once from Init() via darwinInitOnce.
 func initMonitorCG() {
@@ -62,18 +74,18 @@ func initMonitorCG() {
 	if err != nil {
 		return // CoreGraphics unavailable — monitor APIs will return stubs
 	}
-	purego.RegisterLibFunc(&cgMonMainDisplayID, lib, "CGMainDisplayID")
-	purego.RegisterLibFunc(&cgMonGetActiveDisplayList, lib, "CGGetActiveDisplayList")
-	purego.RegisterLibFunc(&cgMonDisplayCopyAllModes, lib, "CGDisplayCopyAllDisplayModes")
-	purego.RegisterLibFunc(&cgMonDisplayCopyCurrentMode, lib, "CGDisplayCopyCurrentDisplayMode")
-	purego.RegisterLibFunc(&cgMonDisplayModeGetWidth, lib, "CGDisplayModeGetWidth")
-	purego.RegisterLibFunc(&cgMonDisplayModeGetHeight, lib, "CGDisplayModeGetHeight")
-	purego.RegisterLibFunc(&cgMonDisplayModeGetRefresh, lib, "CGDisplayModeGetRefreshRate")
-	purego.RegisterLibFunc(&cgMonRegisterReconfigCB, lib, "CGDisplayRegisterReconfigurationCallback")
-	purego.RegisterLibFunc(&cgMonRemoveReconfigCB, lib, "CGDisplayRemoveReconfigurationCallback")
-	purego.RegisterLibFunc(&cfMonArrayGetCount, lib, "CFArrayGetCount")
-	purego.RegisterLibFunc(&cfMonArrayGetValueAt, lib, "CFArrayGetValueAtIndex")
-	purego.RegisterLibFunc(&cfMonRelease, lib, "CFRelease")
+	cgTryRegisterLibFunc(&cgMonMainDisplayID, lib, "CGMainDisplayID")
+	cgTryRegisterLibFunc(&cgMonGetActiveDisplayList, lib, "CGGetActiveDisplayList")
+	cgTryRegisterLibFunc(&cgMonDisplayCopyAllModes, lib, "CGDisplayCopyAllDisplayModes")
+	cgTryRegisterLibFunc(&cgMonDisplayCopyCurrentMode, lib, "CGDisplayCopyCurrentDisplayMode")
+	cgTryRegisterLibFunc(&cgMonDisplayModeGetWidth, lib, "CGDisplayModeGetWidth")
+	cgTryRegisterLibFunc(&cgMonDisplayModeGetHeight, lib, "CGDisplayModeGetHeight")
+	cgTryRegisterLibFunc(&cgMonDisplayModeGetRefresh, lib, "CGDisplayModeGetRefreshRate")
+	cgTryRegisterLibFunc(&cgMonRegisterReconfigCB, lib, "CGDisplayRegisterReconfigurationCallback")
+	cgTryRegisterLibFunc(&cgMonRemoveReconfigCB, lib, "CGDisplayRemoveReconfigurationCallback")
+	cgTryRegisterLibFunc(&cfMonArrayGetCount, lib, "CFArrayGetCount")
+	cgTryRegisterLibFunc(&cfMonArrayGetValueAt, lib, "CFArrayGetValueAtIndex")
+	cgTryRegisterLibFunc(&cfMonRelease, lib, "CFRelease")
 }
 
 // ── Monitor struct addition ───────────────────────────────────────────────────

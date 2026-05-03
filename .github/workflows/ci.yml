@@ -123,13 +123,23 @@ jobs:
           XDG_RUNTIME_DIR: /tmp/wayland-runtime
         run: |
           mkdir -p /tmp/wayland-runtime
-          weston --backend=headless --no-config &
+          # 0700 is required by Wayland/weston for the runtime dir.
+          chmod 0700 /tmp/wayland-runtime
+          # -S wayland-0 forces the socket name (weston may auto-choose
+          # wayland-1 if it thinks another compositor owns wayland-0).
+          weston --backend=headless -S wayland-0 --no-config 2>&1 &
           WESTON_PID=$!
-          # Wait for Weston to create its socket (up to 15 s)
+          # Wait for Weston to create its socket (up to 15 s).
           for i in $(seq 1 30); do
             if [ -S "/tmp/wayland-runtime/wayland-0" ]; then break; fi
             sleep 0.5
           done
+          if [ ! -S "/tmp/wayland-runtime/wayland-0" ]; then
+            echo "Weston socket not found after 15 s; runtime dir contents:"
+            ls -la /tmp/wayland-runtime/ || echo "(empty)"
+            kill "$WESTON_PID" || true
+            exit 1
+          fi
           WAYLAND_DISPLAY=wayland-0 go run -tags wayland ./cmd/test_wayland
           kill $WESTON_PID || true
         timeout-minutes: 3
