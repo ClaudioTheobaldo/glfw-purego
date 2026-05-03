@@ -14,19 +14,25 @@ type cWlMessage struct {
 	types     uintptr // **const wl_interface (one entry per arg, NULL for non-object)
 }
 
-// cWlInterface mirrors struct wl_interface (48 bytes on 64-bit).
-// name(8) + version(4) + pad(4) + method_count(4) + pad(4) + methods(8) +
-// event_count(4) + pad(4) + events(8) = 48
+// cWlInterface2 mirrors struct wl_interface (40 bytes on 64-bit).
+//
+// C layout (from wayland-util.h):
+//   offset  0: const char *name             (8 bytes)
+//   offset  8: int version                  (4 bytes)
+//   offset 12: int method_count             (4 bytes)  ← no padding; int is 4-byte aligned
+//   offset 16: const struct wl_message *methods (8 bytes)
+//   offset 24: int event_count              (4 bytes)
+//   offset 28: [4 bytes padding]            (pointer alignment)
+//   offset 32: const struct wl_message *events  (8 bytes)
+//   total = 40 bytes
 type cWlInterface2 struct {
-	name        uintptr // *const char
-	version     int32
-	_           [4]byte
-	methodCount int32
-	_           [4]byte
-	methods     uintptr // *const wl_message
-	eventCount  int32
-	_           [4]byte
-	events      uintptr // *const wl_message
+	name        uintptr // *const char           offset  0
+	version     int32   //                       offset  8
+	methodCount int32   //                       offset 12 (no padding)
+	methods     uintptr // *const wl_message     offset 16
+	eventCount  int32   //                       offset 24
+	_           [4]byte //                       offset 28 (pad to 8-byte align)
+	events      uintptr // *const wl_message     offset 32
 }
 
 // wlNullTypes is a shared array of NULL pointers used as the 'types' field
