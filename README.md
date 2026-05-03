@@ -13,10 +13,12 @@ Rather than wrapping the GLFW C library, this package reimplements the GLFW Go A
 
 | Platform | Backend | Status |
 |----------|---------|--------|
-| Windows (amd64, arm64) | Win32 + WGL | 🚧 |
-| macOS (amd64, arm64) | Cocoa + CGL | 🚧 |
-| Linux X11 (amd64, arm64) | XGB + GLX | 🚧 |
-| Linux Wayland | Wayland + EGL | 🚧 |
+| Windows (amd64, arm64) | Win32 + WGL/EGL | ✅ |
+| macOS (amd64, arm64) | Cocoa + NSOpenGLContext | ✅ |
+| Linux X11 (amd64, arm64) | XGB + GLX/EGL | ✅ |
+| Linux Wayland (amd64, arm64) | xdg-shell + EGL | ✅ |
+
+CI passes on all four platforms (macOS arm64, Linux X11, Linux Wayland, Windows cross-compile).
 
 ## Linux build tags
 
