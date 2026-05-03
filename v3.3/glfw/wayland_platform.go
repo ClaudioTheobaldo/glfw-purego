@@ -36,13 +36,17 @@ var (
 	wlProxyGetId                 func(proxy uintptr) uint32
 	wlProxyGetVersion            func(proxy uintptr) uint32
 	wlProxyDestroy               func(proxy uintptr)
-	wlProxyMarshalFlags          func(proxy uintptr, opcode uint32, iface uintptr,
-		version, flags uint32, args ...uintptr) uintptr
+	// NOTE: variadic args must be typed as ...interface{} (not ...uintptr) so
+	// that purego expands them individually when marshalling to the C call.
+	// A ...uintptr slice is treated as a single void* argument by purego and
+	// the individual values would be silently dropped.
+	wlProxyMarshalFlags func(proxy uintptr, opcode uint32, iface uintptr,
+		version, flags uint32, args ...interface{}) uintptr
 	// wl_proxy_marshal_constructor is the low-level function underlying
 	// wl_display_get_registry (and similar protocol inlines).  Those inlines
 	// are static in wayland-client-protocol.h and therefore NOT exported from
 	// the .so — we must reimplement them here via this exported symbol.
-	wlProxyMarshalConstructor func(proxy uintptr, opcode uint32, iface uintptr, args ...uintptr) uintptr
+	wlProxyMarshalConstructor func(proxy uintptr, opcode uint32, iface uintptr, args ...interface{}) uintptr
 
 	// Built-in libwayland interface descriptors
 	wlCompositorIfaceAddr uintptr // &wl_compositor_interface
