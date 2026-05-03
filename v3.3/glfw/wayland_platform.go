@@ -327,18 +327,18 @@ func wlOnRegistryGlobal(data, registry uintptr, name uint32, ifacePtr uintptr, v
 	iface := cString(ifacePtr)
 	switch iface {
 	case "wl_compositor":
-		wl.compositor = wlBind(registry, name, wlCompositorIfaceAddr, version, 4)
+		wl.compositor = wlBind(registry, name, wlCompositorIfaceAddr, ifacePtr, version, 4)
 	case "wl_shm":
-		wl.shm = wlBind(registry, name, wlShmIfaceAddr, version, 1)
+		wl.shm = wlBind(registry, name, wlShmIfaceAddr, ifacePtr, version, 1)
 	case "wl_seat":
-		wl.seat = wlBind(registry, name, wlSeatIfaceAddr, version, 5)
+		wl.seat = wlBind(registry, name, wlSeatIfaceAddr, ifacePtr, version, 5)
 		wl.seatListener = new([2]uintptr)
 		wl.seatListener[0] = purego.NewCallback(wlOnSeatCapabilities)
 		wl.seatListener[1] = purego.NewCallback(wlOnSeatName)
 		wlProxyAddListener(wl.seat, uintptr(unsafe.Pointer(wl.seatListener)), 0)
 	case "wl_output":
 		out := &wlOutput{}
-		out.proxy = wlBind(registry, name, wlOutputIfaceAddr, version, 2)
+		out.proxy = wlBind(registry, name, wlOutputIfaceAddr, ifacePtr, version, 2)
 		wl.outputs = append(wl.outputs, out)
 		out.listener = new([4]uintptr)
 		outRef := out // capture for closure
@@ -356,15 +356,15 @@ func wlOnRegistryGlobal(data, registry uintptr, name uint32, ifacePtr uintptr, v
 		wlProxyAddListener(out.proxy, uintptr(unsafe.Pointer(out.listener)), 0)
 	case "xdg_wm_base":
 		wl.wmBase = wlBind(registry, name,
-			uintptr(unsafe.Pointer(&xdgWmBaseIface)), version, 4)
+			uintptr(unsafe.Pointer(&xdgWmBaseIface)), ifacePtr, version, 4)
 		wl.wmListener = new([1]uintptr)
 		wl.wmListener[0] = purego.NewCallback(wlOnWmBasePing)
 		wlProxyAddListener(wl.wmBase, uintptr(unsafe.Pointer(wl.wmListener)), 0)
 	case "wl_data_device_manager":
-		wl.ddManager = wlBind(registry, name, wlDDMgrIfaceAddr, version, 3)
+		wl.ddManager = wlBind(registry, name, wlDDMgrIfaceAddr, ifacePtr, version, 3)
 	case "zxdg_decoration_manager_v1":
 		wl.decoMgr = wlBind(registry, name,
-			uintptr(unsafe.Pointer(&xdgDecoMgrIface)), version, 1)
+			uintptr(unsafe.Pointer(&xdgDecoMgrIface)), ifacePtr, version, 1)
 	}
 }
 
@@ -373,18 +373,20 @@ func wlOnRegistryGlobalRemove(data, registry uintptr, name uint32) {
 }
 
 // wlBind calls wl_registry.bind to obtain a proxy for a global.
-// iface is a pointer to a wl_interface struct (from libwayland or our custom one).
-// The first field of wl_interface is the name string pointer.
-func wlBind(registry uintptr, name uint32, iface uintptr, have, want uint32) uintptr {
+//
+// iface is a pointer to the wl_interface struct that describes the return type.
+// ifaceNamePtr is the C string pointer for the interface name — passed directly
+// from the registry-global callback so that we never need to read the name field
+// from the wl_interface struct (which requires dereferencing a raw C pointer and
+// is fragile when the struct is in a shared-library's BSS/rodata section).
+func wlBind(registry uintptr, name uint32, iface, ifaceNamePtr uintptr, have, want uint32) uintptr {
 	v := want
 	if have < want {
 		v = have
 	}
-	// First field of wl_interface is *const char (the interface name)
-	ifaceName := *(*uintptr)(nativePtrFromUintptr(iface))
 	return wlProxyMarshalFlags(registry, 0 /* WL_REGISTRY_BIND */,
 		iface, v, 0,
-		uintptr(name), ifaceName, uintptr(v), 0)
+		uintptr(name), ifaceNamePtr, uintptr(v), 0)
 }
 
 // ── xdg_wm_base ping ─────────────────────────────────────────────────────────
