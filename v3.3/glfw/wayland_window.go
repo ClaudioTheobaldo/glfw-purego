@@ -45,9 +45,10 @@ func CreateWindow(width, height int, title string, monitor, share *Monitor) (*Wi
 
 	// ── xdg_surface ───────────────────────────────────────────────────────────
 	// xdg_wm_base.get_xdg_surface opcode=2, signature="no" (new_id + wl_surface)
+	// For "no": variadic args are (NULL for new_id, then the object).
 	w.wlXdgSurf = wlProxyMarshalFlags(wl.wmBase, 2,
 		uintptr(unsafe.Pointer(&xdgSurfaceIface)), 4, 0,
-		w.handle, 0)
+		0, w.handle)
 	if w.wlXdgSurf == 0 {
 		windowByHandle.Delete(w.handle)
 		wlProxyMarshalFlags(w.handle, 0, 0, 4, 1) // destroy + free
@@ -124,9 +125,10 @@ func CreateWindow(width, height int, title string, monitor, share *Monitor) (*Wi
 	// ── Server-side decorations (optional) ────────────────────────────────────
 	if wl.decoMgr != 0 {
 		// zxdg_decoration_manager_v1.get_toplevel_decoration opcode=1, signature="no"
+		// For "no": variadic args are (NULL for new_id, then the object).
 		deco := wlProxyMarshalFlags(wl.decoMgr, 1,
 			uintptr(unsafe.Pointer(&xdgTopDecoIface)), 1, 0,
-			w.wlXdgTop, 0)
+			0, w.wlXdgTop)
 		if deco != 0 {
 			// zxdg_toplevel_decoration_v1.set_mode opcode=1, value=2 (server-side)
 			wlProxyMarshalFlags(deco, 1, 0, 1, 0, uintptr(2))

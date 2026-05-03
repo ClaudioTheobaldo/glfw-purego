@@ -46,9 +46,10 @@ func wlInitDataDevice() {
 		return
 	}
 	// get_data_device opcode=1, signature="no" (new_id + wl_seat)
+	// For "no": variadic args are (NULL for new_id, then the object).
 	wl.dataDevice = wlProxyMarshalFlags(wl.ddManager, 1,
 		wlDDDeviceIfaceAddr, 3, 0,
-		wl.seat, 0)
+		0, wl.seat)
 	if wl.dataDevice == 0 {
 		return
 	}
