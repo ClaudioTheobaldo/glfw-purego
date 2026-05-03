@@ -115,12 +115,15 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y --no-install-recommends \
             libwayland-dev libwayland-egl-backend-dev libegl1-mesa-dev \
-            libwayland-cursor0 weston
+            libwayland-cursor0 weston \
+            libegl-mesa0 libgl1-mesa-dri
 
       - name: Run smoke test (headless Weston)
         env:
           GOWORK: "off"
           XDG_RUNTIME_DIR: /tmp/wayland-runtime
+          # Force Mesa software rasteriser — the CI runner has no GPU.
+          LIBGL_ALWAYS_SOFTWARE: "1"
         run: |
           mkdir -p /tmp/wayland-runtime
           # 0700 is required by Wayland/weston for the runtime dir.

@@ -157,7 +157,9 @@ func CreateWindow(width, height int, title string, monitor, share *Monitor) (*Wi
 		return nil, &Error{Code: PlatformError, Desc: "Wayland: wl_egl_window_create failed"}
 	}
 
-	surf, ctx, err := createEGLContext(0, w.wlEGLWin, h)
+	// Pass wl.display as the EGL native display so Mesa picks the Wayland
+	// platform (EGL_PLATFORM_WAYLAND_KHR) instead of trying EGL_DEFAULT_DISPLAY.
+	surf, ctx, err := createEGLContext(wl.display, w.wlEGLWin, h)
 	if err != nil {
 		wlEGLWindowDestroy(w.wlEGLWin)
 		w.wlEGLWin = 0

@@ -107,6 +107,9 @@ func wlOnDataDeviceSelection(data, device, offer uintptr) {
 
 // SetClipboardString places text into the system clipboard.
 func SetClipboardString(str string) {
+	// Always cache locally so GetClipboardString can return it even when the
+	// Wayland data-device protocol is not available (no seat focus, headless CI).
+	wl.clipboardText = str
 	if wl.dataDevice == 0 || wlDDSourceIfaceAddr == 0 {
 		return
 	}
@@ -115,7 +118,6 @@ func SetClipboardString(str string) {
 		wlProxyMarshalFlags(wl.clipboardSrc, 1, 0, 1, 1) // destroy
 		wl.clipboardSrc = 0
 	}
-	wl.clipboardText = str
 
 	// create_data_source opcode=0, signature="n"
 	src := wlProxyMarshalFlags(wl.ddManager, 0, wlDDSourceIfaceAddr, 3, 0, 0)
@@ -174,11 +176,9 @@ func wlOnDataSourceCancelled(data, source uintptr) {
 
 // GetClipboardString returns the current clipboard text.
 func GetClipboardString() string {
-	if wl.dataDevice == 0 {
-		return ""
-	}
-	// Short-circuit: we own the clipboard.
-	if wl.clipboardSrc != 0 {
+	// Short-circuit: we own the clipboard (or data-device is unavailable —
+	// fall back to the in-process cached text set by SetClipboardString).
+	if wl.clipboardSrc != 0 || wl.dataDevice == 0 {
 		return wl.clipboardText
 	}
 	offer := wl.lastOffer
