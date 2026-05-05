@@ -23,9 +23,12 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unsafe"
 
 	glfw "github.com/ClaudioTheobaldo/glfw-purego/v3.3/glfw"
 )
+
+var dummy int // sentinel address used for user-pointer round-trips
 
 // ── result tracking ──────────────────────────────────────────────────────────
 
@@ -471,6 +474,368 @@ func testClipboard() {
 		fmt.Sprintf("want=%q got=%q", want2, got2))
 }
 
+// ── version / hints / time / events / feature queries ────────────────────────
+
+func testVersionAndHints() {
+	major, minor, _ := glfw.GetVersion()
+	check("GetVersion returns 3.3.x", major == 3 && minor == 3,
+		fmt.Sprintf("%d.%d", major, minor))
+	check("GetVersionString non-empty", glfw.GetVersionString() != "",
+		glfw.GetVersionString())
+
+	glfw.InitHint(glfw.Focused, 1)
+	glfw.WindowHint(glfw.ContextVersionMajor, 3)
+	glfw.WindowHintString(glfw.Focused, "value")
+	glfw.DefaultWindowHints()
+	check("InitHint / WindowHint / WindowHintString / DefaultWindowHints: no panic", true, "")
+
+	check("GetKeyScancode returns int", true,
+		fmt.Sprintf("KeyA=%d", glfw.GetKeyScancode(glfw.KeyA)))
+	check("GetKeyName returns string", true,
+		fmt.Sprintf("name=%q", glfw.GetKeyName(glfw.KeyA, 0)))
+
+	check("RawMouseMotionSupported: ran without panic", true,
+		fmt.Sprintf("result=%v", glfw.RawMouseMotionSupported()))
+}
+
+func testTimer() {
+	check("GetTime >= 0", glfw.GetTime() >= 0, "")
+	check("GetTimerFrequency > 0", glfw.GetTimerFrequency() > 0, "")
+	check("GetTimerValue > 0", glfw.GetTimerValue() > 0, "")
+
+	glfw.SetTime(10.0)
+	check("SetTime then GetTime >= 10.0", glfw.GetTime() >= 10.0, "")
+	glfw.SetTime(0)
+}
+
+func testEvents() {
+	glfw.PollEvents()
+	glfw.PostEmptyEvent()
+	glfw.WaitEventsTimeout(0.001)
+	check("PollEvents / PostEmptyEvent / WaitEventsTimeout: no panic", true, "")
+}
+
+// ── monitor user-pointer + native handles ─────────────────────────────────────
+
+func testMonitorExtras() {
+	pm := glfw.GetPrimaryMonitor()
+	if pm == nil {
+		return
+	}
+	dummy := unsafe.Pointer(&dummy)
+	pm.SetUserPointer(dummy)
+	check("Monitor.SetUserPointer / GetUserPointer round-trip",
+		pm.GetUserPointer() == dummy, "")
+	pm.SetUserPointer(nil)
+
+	check("Monitor.GetX11Adapter: no panic", true,
+		fmt.Sprintf("0x%x", pm.GetX11Adapter()))
+	check("Monitor.GetX11Monitor: no panic", true,
+		fmt.Sprintf("0x%x", pm.GetX11Monitor()))
+
+	// Gamma APIs are real on X11 via libXxf86vm.
+	pm.SetGamma(1.0)
+	pm.GetGammaRamp()
+	pm.SetGammaRamp(&glfw.GammaRamp{})
+	check("Monitor gamma APIs: no panic", true, "")
+
+	glfw.SetMonitorCallback(func(_ *glfw.Monitor, _ glfw.PeripheralEvent) {})
+	glfw.SetMonitorCallback(nil)
+	check("SetMonitorCallback set/clear: no panic", true, "")
+}
+
+// ── window: comprehensive method coverage ─────────────────────────────────────
+
+func testWindowComprehensive(w *glfw.Window) {
+	width, height := w.GetSize()
+	check("GetSize > 0", width > 0 && height > 0,
+		fmt.Sprintf("%dx%d", width, height))
+
+	w.SetSize(500, 350)
+	check("SetSize: no panic", true, "")
+
+	x, y := w.GetPos()
+	check("GetPos: no panic", true, fmt.Sprintf("(%d,%d)", x, y))
+	w.SetPos(120, 120)
+	check("SetPos: no panic", true, "")
+
+	fbW, fbH := w.GetFramebufferSize()
+	check("GetFramebufferSize > 0", fbW > 0 && fbH > 0,
+		fmt.Sprintf("%dx%d", fbW, fbH))
+
+	cs1, cs2 := w.GetContentScale()
+	check("Window.GetContentScale >= 1.0", cs1 >= 1.0 && cs2 >= 1.0,
+		fmt.Sprintf("(%.2f,%.2f)", cs1, cs2))
+
+	l, t, r, b := w.GetFrameSize()
+	check("GetFrameSize: no panic", true, fmt.Sprintf("(%d,%d,%d,%d)", l, t, r, b))
+	l, t, r, b = glfw.GetWindowFrameSize(w)
+	check("GetWindowFrameSize (pkg): no panic", true, fmt.Sprintf("(%d,%d,%d,%d)", l, t, r, b))
+
+	w.SetTitle("comprehensive-test")
+	check("SetTitle: no panic", true, "")
+	check("InternalTitle reflects last SetTitle",
+		w.InternalTitle() == "comprehensive-test", w.InternalTitle())
+
+	w.SetIcon(nil)
+	glfw.SetIconFromImages(w, nil)
+	check("SetIcon / SetIconFromImages: no panic", true, "")
+
+	// Lifecycle.
+	check("ShouldClose initial false", !w.ShouldClose(), "")
+	w.SetShouldClose(true)
+	check("SetShouldClose(true)", w.ShouldClose(), "")
+	w.SetShouldClose(false)
+
+	w.Show()
+	w.Hide()
+	w.Show()
+	check("Show / Hide / Show: no panic", true, "")
+
+	for range 3 {
+		glfw.PollEvents()
+	}
+	w.Iconify()
+	glfw.PollEvents()
+	w.Restore()
+	glfw.PollEvents()
+	w.Maximize()
+	glfw.PollEvents()
+	w.Restore()
+	check("Iconify / Restore / Maximize: no panic", true, "")
+
+	w.Focus()
+	check("Focus: no panic", true, "")
+
+	// Attribs.
+	_ = w.GetAttrib(glfw.Visible)
+	_ = w.GetAttrib(glfw.Iconified)
+	_ = w.GetAttrib(glfw.Maximized)
+	_ = w.GetAttrib(glfw.Focused)
+	_ = w.GetAttrib(glfw.Resizable)
+	_ = w.GetAttrib(glfw.Decorated)
+	check("GetAttrib(...): no panic", true, "")
+	w.SetAttrib(glfw.Resizable, 1)
+	w.SetAttrib(glfw.Decorated, 1)
+	w.SetAttrib(glfw.Floating, 0)
+	check("SetAttrib(Resizable/Decorated/Floating): no panic", true, "")
+
+	// Monitor / fullscreen.
+	_ = w.GetMonitor()
+	check("GetMonitor: no panic", true, "")
+	w.SetMonitor(nil, 0, 0, 320, 240, 0)
+	check("SetMonitor(nil): no panic", true, "")
+
+	// Handle / GoWindow.
+	h := w.Handle()
+	check("Window.Handle non-nil", h != nil, "")
+	check("GoWindow(Handle()) == w", glfw.GoWindow(h) == w, "")
+
+	// User pointer.
+	dummy := unsafe.Pointer(&width)
+	w.SetUserPointer(dummy)
+	check("Window.SetUserPointer / GetUserPointer round-trip",
+		w.GetUserPointer() == dummy, "")
+	glfw.SetWindowUserPointer(w, nil)
+	check("SetWindowUserPointer / GetWindowUserPointer round-trip",
+		glfw.GetWindowUserPointer(w) == nil, "")
+
+	// Window-scoped clipboard.
+	const text = "x11 window clipboard"
+	w.SetClipboardString(text)
+	for range 3 {
+		glfw.PollEvents()
+	}
+	check("Window.SetClipboardString / GetClipboardString round-trip",
+		w.GetClipboardString() == text, w.GetClipboardString())
+
+	// Input.
+	check("GetKey(KeyA) initial Release", w.GetKey(glfw.KeyA) == glfw.Release, "")
+	check("GetMouseButton(MouseButtonLeft) initial Release",
+		w.GetMouseButton(glfw.MouseButtonLeft) == glfw.Release, "")
+	cx, cy := w.GetCursorPos()
+	check("GetCursorPos: no panic", true, fmt.Sprintf("(%.1f,%.1f)", cx, cy))
+	w.SetCursorPos(50, 50)
+	check("SetCursorPos: no panic", true, "")
+
+	w.SetInputMode(glfw.CursorMode, glfw.CursorNormal)
+	check("GetInputMode == CursorNormal",
+		w.GetInputMode(glfw.CursorMode) == glfw.CursorNormal, "")
+	w.SetInputMode(glfw.CursorMode, glfw.CursorHidden)
+	check("GetInputMode == CursorHidden",
+		w.GetInputMode(glfw.CursorMode) == glfw.CursorHidden, "")
+	w.SetInputMode(glfw.CursorMode, glfw.CursorNormal)
+	w.SetInputMode(glfw.StickyKeys, 1)
+	w.SetInputMode(glfw.StickyMouseButtons, 1)
+	w.SetInputMode(glfw.LockKeyMods, 1)
+	check("SetInputMode (cursor / sticky / lock-mods): no panic", true, "")
+
+	// Native X11 handles.
+	check("Window.GetX11Window non-zero", w.GetX11Window() != 0,
+		fmt.Sprintf("0x%x", w.GetX11Window()))
+	check("GetX11Display non-zero", glfw.GetX11Display() != 0,
+		fmt.Sprintf("0x%x", glfw.GetX11Display()))
+	_ = w.GetGLXContext()
+	check("Window.GetGLXContext: no panic", true,
+		fmt.Sprintf("0x%x", w.GetGLXContext()))
+	_ = w.GetGLXWindow()
+	check("Window.GetGLXWindow: no panic", true,
+		fmt.Sprintf("0x%x", w.GetGLXWindow()))
+	const sel = "x11-selection-test"
+	glfw.SetX11SelectionString(sel)
+	glfw.PollEvents()
+	check("SetX11SelectionString / GetX11SelectionString round-trip",
+		glfw.GetX11SelectionString() == sel, glfw.GetX11SelectionString())
+
+	// GL context (window was created with NoAPI in this flow — skip these
+	// when there's no context).
+	if w.GetGLXContext() != 0 {
+		w.MakeContextCurrent()
+		cur := glfw.GetCurrentContext()
+		check("GetCurrentContext returns this window", cur == w, "")
+		glfw.SwapInterval(1)
+		w.SwapBuffers()
+		_ = glfw.GetProcAddress("glClear")
+		_ = glfw.ExtensionSupported("GLX_EXT_swap_control")
+		glfw.DetachCurrentContext()
+		check("MakeContextCurrent / SwapBuffers / DetachCurrentContext: no panic", true, "")
+	}
+
+	// Cursors.
+	for _, shape := range []glfw.StandardCursorShape{
+		glfw.ArrowCursor, glfw.IBeamCursor, glfw.CrosshairCursor,
+		glfw.HandCursor, glfw.HResizeCursor, glfw.VResizeCursor,
+	} {
+		c, cerr := glfw.CreateStandardCursor(shape)
+		check(fmt.Sprintf("CreateStandardCursor(%v): no error", shape),
+			cerr == nil, fmt.Sprintf("%v", cerr))
+		if c != nil {
+			w.SetCursor(c)
+			c.Destroy()
+		}
+	}
+	pix := []byte{255, 255, 255, 255}
+	custom, cerr := glfw.CreateCursor(&glfw.Image{Width: 1, Height: 1, Pixels: pix}, 0, 0)
+	check("CreateCursor: no error", cerr == nil, fmt.Sprintf("%v", cerr))
+	if custom != nil {
+		w.SetCursor(custom)
+		check("SetCursor(custom): no panic", true, "")
+		glfw.DestroyCursor(custom)
+	}
+	w.SetCursor(nil)
+	check("SetCursor(nil): no panic", true, "")
+
+	// Vulkan surface (graceful failure with nil instance).
+	if glfw.VulkanSupported() {
+		_, err := w.CreateWindowSurface(nil, nil)
+		check("CreateWindowSurface(nil instance): returns error without panic",
+			err != nil, fmt.Sprintf("%v", err))
+		addr := glfw.GetVulkanGetInstanceProcAddress()
+		check("GetVulkanGetInstanceProcAddress non-nil when supported",
+			addr != nil, fmt.Sprintf("%v", addr))
+	}
+}
+
+// ── window callbacks (all 17) ─────────────────────────────────────────────────
+
+func funcID(f any) uintptr {
+	if f == nil {
+		return 0
+	}
+	v := *(*[2]uintptr)(unsafe.Pointer(&f))
+	return v[1]
+}
+
+func testCallbacks(w *glfw.Window) {
+	type cbCase struct {
+		name string
+		set1 func() any
+		set2 func() any
+		setNil func() any
+	}
+	cases := []cbCase{
+		{"SetPosCallback",
+			func() any { return w.SetPosCallback(func(_ *glfw.Window, _, _ int) {}) },
+			func() any { return w.SetPosCallback(func(_ *glfw.Window, _, _ int) {}) },
+			func() any { return w.SetPosCallback(nil) }},
+		{"SetSizeCallback",
+			func() any { return w.SetSizeCallback(func(_ *glfw.Window, _, _ int) {}) },
+			func() any { return w.SetSizeCallback(func(_ *glfw.Window, _, _ int) {}) },
+			func() any { return w.SetSizeCallback(nil) }},
+		{"SetFramebufferSizeCallback",
+			func() any { return w.SetFramebufferSizeCallback(func(_ *glfw.Window, _, _ int) {}) },
+			func() any { return w.SetFramebufferSizeCallback(func(_ *glfw.Window, _, _ int) {}) },
+			func() any { return w.SetFramebufferSizeCallback(nil) }},
+		{"SetCloseCallback",
+			func() any { return w.SetCloseCallback(func(_ *glfw.Window) {}) },
+			func() any { return w.SetCloseCallback(func(_ *glfw.Window) {}) },
+			func() any { return w.SetCloseCallback(nil) }},
+		{"SetMaximizeCallback",
+			func() any { return w.SetMaximizeCallback(func(_ *glfw.Window, _ bool) {}) },
+			func() any { return w.SetMaximizeCallback(func(_ *glfw.Window, _ bool) {}) },
+			func() any { return w.SetMaximizeCallback(nil) }},
+		{"SetRefreshCallback",
+			func() any { return w.SetRefreshCallback(func(_ *glfw.Window) {}) },
+			func() any { return w.SetRefreshCallback(func(_ *glfw.Window) {}) },
+			func() any { return w.SetRefreshCallback(nil) }},
+		{"SetFocusCallback",
+			func() any { return w.SetFocusCallback(func(_ *glfw.Window, _ bool) {}) },
+			func() any { return w.SetFocusCallback(func(_ *glfw.Window, _ bool) {}) },
+			func() any { return w.SetFocusCallback(nil) }},
+		{"SetIconifyCallback",
+			func() any { return w.SetIconifyCallback(func(_ *glfw.Window, _ bool) {}) },
+			func() any { return w.SetIconifyCallback(func(_ *glfw.Window, _ bool) {}) },
+			func() any { return w.SetIconifyCallback(nil) }},
+		{"SetContentScaleCallback",
+			func() any { return w.SetContentScaleCallback(func(_ *glfw.Window, _, _ float32) {}) },
+			func() any { return w.SetContentScaleCallback(func(_ *glfw.Window, _, _ float32) {}) },
+			func() any { return w.SetContentScaleCallback(nil) }},
+		{"SetMouseButtonCallback",
+			func() any { return w.SetMouseButtonCallback(func(_ *glfw.Window, _ glfw.MouseButton, _ glfw.Action, _ glfw.ModifierKey) {}) },
+			func() any { return w.SetMouseButtonCallback(func(_ *glfw.Window, _ glfw.MouseButton, _ glfw.Action, _ glfw.ModifierKey) {}) },
+			func() any { return w.SetMouseButtonCallback(nil) }},
+		{"SetCursorPosCallback",
+			func() any { return w.SetCursorPosCallback(func(_ *glfw.Window, _, _ float64) {}) },
+			func() any { return w.SetCursorPosCallback(func(_ *glfw.Window, _, _ float64) {}) },
+			func() any { return w.SetCursorPosCallback(nil) }},
+		{"SetCursorEnterCallback",
+			func() any { return w.SetCursorEnterCallback(func(_ *glfw.Window, _ bool) {}) },
+			func() any { return w.SetCursorEnterCallback(func(_ *glfw.Window, _ bool) {}) },
+			func() any { return w.SetCursorEnterCallback(nil) }},
+		{"SetScrollCallback",
+			func() any { return w.SetScrollCallback(func(_ *glfw.Window, _, _ float64) {}) },
+			func() any { return w.SetScrollCallback(func(_ *glfw.Window, _, _ float64) {}) },
+			func() any { return w.SetScrollCallback(nil) }},
+		{"SetKeyCallback",
+			func() any { return w.SetKeyCallback(func(_ *glfw.Window, _ glfw.Key, _ int, _ glfw.Action, _ glfw.ModifierKey) {}) },
+			func() any { return w.SetKeyCallback(func(_ *glfw.Window, _ glfw.Key, _ int, _ glfw.Action, _ glfw.ModifierKey) {}) },
+			func() any { return w.SetKeyCallback(nil) }},
+		{"SetCharCallback",
+			func() any { return w.SetCharCallback(func(_ *glfw.Window, _ rune) {}) },
+			func() any { return w.SetCharCallback(func(_ *glfw.Window, _ rune) {}) },
+			func() any { return w.SetCharCallback(nil) }},
+		{"SetCharModsCallback",
+			func() any { return w.SetCharModsCallback(func(_ *glfw.Window, _ rune, _ glfw.ModifierKey) {}) },
+			func() any { return w.SetCharModsCallback(func(_ *glfw.Window, _ rune, _ glfw.ModifierKey) {}) },
+			func() any { return w.SetCharModsCallback(nil) }},
+		{"SetDropCallback",
+			func() any { return w.SetDropCallback(func(_ *glfw.Window, _ []string) {}) },
+			func() any { return w.SetDropCallback(func(_ *glfw.Window, _ []string) {}) },
+			func() any { return w.SetDropCallback(nil) }},
+	}
+	for _, c := range cases {
+		prev1 := c.set1()
+		check(c.name+": first-set returns nil", prev1 == nil,
+			fmt.Sprintf("got %v", prev1))
+		prev2 := c.set2()
+		check(c.name+": second-set returns previous (non-nil)",
+			funcID(prev2) != 0, "")
+		prevNil := c.setNil()
+		check(c.name+": nil-set returns previous (non-nil)",
+			funcID(prevNil) != 0, "")
+	}
+}
+
 // ── main ──────────────────────────────────────────────────────────────────────
 
 func main() {
@@ -489,8 +854,24 @@ func main() {
 	pass("Init", "")
 	defer glfw.Terminate()
 
+	fmt.Println("── Version / hints ────────────────────────────────────────────")
+	testVersionAndHints()
+	fmt.Println()
+
+	fmt.Println("── Timer ──────────────────────────────────────────────────────")
+	testTimer()
+	fmt.Println()
+
+	fmt.Println("── Events ─────────────────────────────────────────────────────")
+	testEvents()
+	fmt.Println()
+
 	fmt.Println("── Monitors (XRandR) ──────────────────────────────────────────")
 	testMonitors()
+
+	fmt.Println("── Monitor extras (user pointer / native handles / gamma) ─────")
+	testMonitorExtras()
+	fmt.Println()
 
 	fmt.Println("── Vulkan ─────────────────────────────────────────────────────")
 	testVulkan()
@@ -520,6 +901,12 @@ func main() {
 		testRawMouseMotion(w)
 		fmt.Println()
 		testClipboard()
+		fmt.Println()
+		fmt.Println("── Window: comprehensive method coverage ─────────────────────")
+		testWindowComprehensive(w)
+		fmt.Println()
+		fmt.Println("── Window callbacks (all 17) ─────────────────────────────────")
+		testCallbacks(w)
 		w.Destroy()
 	}
 

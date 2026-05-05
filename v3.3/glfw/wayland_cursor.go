@@ -252,6 +252,9 @@ func CreateCursor(image *Image, xhot, yhot int) (*Cursor, error) {
 
 // ── DestroyCursor ─────────────────────────────────────────────────────────────
 
+// Destroy is the method form of DestroyCursor — matches go-gl/glfw.
+func (c *Cursor) Destroy() { DestroyCursor(c) }
+
 // DestroyCursor frees a cursor created by CreateCursor.
 // Cursors created by CreateStandardCursor are owned by the cursor theme and
 // are not freed individually.
