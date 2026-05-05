@@ -40,6 +40,19 @@ func loadWaylandVulkan() error {
 // VulkanSupported reports whether a Vulkan loader is available on this system.
 func VulkanSupported() bool { return loadWaylandVulkan() == nil }
 
+// GetVulkanGetInstanceProcAddress returns the address of vkGetInstanceProcAddr
+// (cast to unsafe.Pointer), or nil if the Vulkan loader could not be loaded.
+func GetVulkanGetInstanceProcAddress() unsafe.Pointer {
+	if loadWaylandVulkan() != nil {
+		return nil
+	}
+	addr, err := purego.Dlsym(wlVulkanHandle, "vkGetInstanceProcAddr")
+	if err != nil || addr == 0 {
+		return nil
+	}
+	return nativePtrFromUintptr(addr)
+}
+
 // GetRequiredInstanceExtensions returns the Vulkan instance extensions required
 // to create a Wayland window surface.
 func GetRequiredInstanceExtensions() []string {

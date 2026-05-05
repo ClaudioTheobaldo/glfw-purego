@@ -3,6 +3,8 @@
 package glfw
 
 import (
+	"errors"
+	"runtime"
 	"syscall"
 	"unsafe"
 
@@ -79,15 +81,161 @@ func wlOnDataDeviceDataOffer(data, device, offer uintptr) {
 	wl.pendingOffer = offer
 }
 
+// Wayland fixed-point: 1.0 == (1 << 8); convert wl_fixed to float64.
+func wlFixedToFloat(f int32) float64 { return float64(f) / 256.0 }
+
+// wlOnDataDeviceEnter is called when a drag has entered our surface.
+// We accept "text/uri-list" so the source knows we'll consume file drops.
 func wlOnDataDeviceEnter(data, device uintptr, serial uint32, surface uintptr, x, y int32, offer uintptr) {
-	// Drag-and-drop enter — not implemented.
+	wl.dndOffer = offer
+	wl.dndWin = nil
+	if v, ok := windowByHandle.Load(surface); ok {
+		wl.dndWin = v.(*Window)
+	}
+	wl.dndX = wlFixedToFloat(x)
+	wl.dndY = wlFixedToFloat(y)
+	if offer != 0 {
+		// wl_data_offer.accept opcode=0, signature="u?s"  (serial, mime_type)
+		mime := append([]byte("text/uri-list"), 0)
+		wlProxyMarshalFlags(offer, 0, 0, 1, 0,
+			uintptr(serial),
+			uintptr(unsafe.Pointer(&mime[0])))
+		// wl_data_offer.set_actions opcode=4, signature="uu" — request copy action.
+		// preferred_action = 1 (DND_ACTION_COPY); dnd_actions = 1.
+		wlProxyMarshalFlags(offer, 4, 0, 3, 0, uintptr(1), uintptr(1))
+		// Keep the byte slice alive across the marshal call.
+		runtime.KeepAlive(mime)
+	}
 }
 
-func wlOnDataDeviceLeave(data, device uintptr) {}
+func wlOnDataDeviceLeave(data, device uintptr) {
+	if wl.dndOffer != 0 {
+		wlProxyMarshalFlags(wl.dndOffer, 2, 0, 1, 1) // destroy + free
+		wl.dndOffer = 0
+	}
+	wl.dndWin = nil
+}
 
-func wlOnDataDeviceMotion(data, device uintptr, time uint32, x, y int32) {}
+func wlOnDataDeviceMotion(data, device uintptr, time uint32, x, y int32) {
+	wl.dndX = wlFixedToFloat(x)
+	wl.dndY = wlFixedToFloat(y)
+}
 
-func wlOnDataDeviceDrop(data, device uintptr) {}
+// wlOnDataDeviceDrop performs the wl_data_offer.receive handshake to read
+// the dropped data and invokes the window's drop callback.
+func wlOnDataDeviceDrop(data, device uintptr) {
+	offer := wl.dndOffer
+	win := wl.dndWin
+	wl.dndOffer = 0
+	wl.dndWin = nil
+	if offer == 0 || win == nil || win.fDropHolder == nil {
+		if offer != 0 {
+			wlProxyMarshalFlags(offer, 2, 0, 1, 1) // destroy
+		}
+		return
+	}
+
+	var pipeFDs [2]int
+	if err := syscall.Pipe2(pipeFDs[:], syscall.O_CLOEXEC); err != nil {
+		wlProxyMarshalFlags(offer, 2, 0, 1, 1)
+		return
+	}
+	readFD, writeFD := pipeFDs[0], pipeFDs[1]
+
+	// wl_data_offer.receive opcode=1, signature="sh"
+	mime := append([]byte("text/uri-list"), 0)
+	wlProxyMarshalFlags(offer, 1, 0, 1, 0,
+		uintptr(unsafe.Pointer(&mime[0])),
+		uintptr(writeFD))
+	wlDisplayFlush(wl.display)
+	syscall.Close(writeFD)
+	runtime.KeepAlive(mime)
+
+	var buf [4096]byte
+	var raw []byte
+	for {
+		n, err := syscall.Read(readFD, buf[:])
+		if n > 0 {
+			raw = append(raw, buf[:n]...)
+		}
+		if err != nil || n == 0 {
+			break
+		}
+	}
+	syscall.Close(readFD)
+
+	// Parse the URI list: lines starting with '#' are comments; each remaining
+	// line is a percent-encoded URI.  Strip "file://" prefix.
+	paths := parseURIList(string(raw))
+
+	// wl_data_offer.finish opcode=3 (since v3) — required when set_actions was used.
+	wlProxyMarshalFlags(offer, 3, 0, 3, 0)
+	wlProxyMarshalFlags(offer, 2, 0, 1, 1) // destroy + free
+
+	if len(paths) > 0 {
+		win.fDropHolder(win, paths)
+	}
+}
+
+// parseURIList parses an RFC 2483 text/uri-list payload, returning the
+// filesystem paths of any "file://" URIs and dropping comments + non-file URIs.
+func parseURIList(s string) []string {
+	var paths []string
+	start := 0
+	for i := 0; i <= len(s); i++ {
+		if i == len(s) || s[i] == '\n' {
+			line := s[start:i]
+			start = i + 1
+			// Trim CR for CRLF endings.
+			if n := len(line); n > 0 && line[n-1] == '\r' {
+				line = line[:n-1]
+			}
+			if line == "" || line[0] == '#' {
+				continue
+			}
+			const filePrefix = "file://"
+			if len(line) > len(filePrefix) && line[:len(filePrefix)] == filePrefix {
+				p, err := uriDecode(line[len(filePrefix):])
+				if err == nil {
+					paths = append(paths, p)
+				}
+			}
+		}
+	}
+	return paths
+}
+
+// uriDecode performs minimal percent-decoding of an RFC 3986 path.
+func uriDecode(s string) (string, error) {
+	out := make([]byte, 0, len(s))
+	for i := 0; i < len(s); i++ {
+		if s[i] == '%' && i+2 < len(s) {
+			hi, lo := hexNibble(s[i+1]), hexNibble(s[i+2])
+			if hi < 0 || lo < 0 {
+				return "", errInvalidPercent
+			}
+			out = append(out, byte(hi<<4|lo))
+			i += 2
+			continue
+		}
+		out = append(out, s[i])
+	}
+	return string(out), nil
+}
+
+func hexNibble(c byte) int {
+	switch {
+	case c >= '0' && c <= '9':
+		return int(c - '0')
+	case c >= 'a' && c <= 'f':
+		return int(c-'a') + 10
+	case c >= 'A' && c <= 'F':
+		return int(c-'A') + 10
+	}
+	return -1
+}
+
+var errInvalidPercent = errors.New("wayland DnD: invalid percent-encoding in URI")
 
 func wlOnDataDeviceSelection(data, device, offer uintptr) {
 	// A new clipboard selection arrived.  Destroy the old offer (if any) and

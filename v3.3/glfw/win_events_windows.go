@@ -13,6 +13,8 @@ func PollEvents() {
 		translateMessage(&msg)
 		dispatchMessageW(&msg)
 	}
+	// XInput connect/disconnect detection (cheap; 4 syscalls/frame max).
+	pollJoystickConnections()
 }
 
 // WaitEvents blocks until at least one event is queued, then processes all

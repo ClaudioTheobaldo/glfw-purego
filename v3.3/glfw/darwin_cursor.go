@@ -140,6 +140,9 @@ func DestroyCursor(c *Cursor) {
 	c.handle = 0
 }
 
+// Destroy is the method form of DestroyCursor — matches go-gl/glfw.
+func (c *Cursor) Destroy() { DestroyCursor(c) }
+
 // ── Window.SetCursor ──────────────────────────────────────────────────────────
 
 // SetCursor sets the cursor shape for the window.

@@ -214,8 +214,48 @@ func testWindow() {
 	glfw.WaitEventsTimeout(0.001)
 	check("WaitEventsTimeout(1ms): no panic", true, "")
 
+	// ── Phase 1-9 parity additions ────────────────────────────────────────
+	// Show / Hide round-trip must not panic.
+	w.Show()
+	w.Hide()
+	check("Show / Hide: no panic", true, "")
+
+	// SetSizeLimits + SetAspectRatio must not panic.
+	w.SetSizeLimits(100, 100, 800, 600)
+	w.SetAspectRatio(16, 9)
+	check("SetSizeLimits / SetAspectRatio: no panic", true, "")
+
+	// GetAttrib(Visible) — should return 0 (we just hid it).
+	check("GetAttrib(Visible) honours Hide", w.GetAttrib(glfw.Visible) == 0,
+		fmt.Sprintf("got %d", w.GetAttrib(glfw.Visible)))
+
+	// Window-scoped clipboard methods (delegate to package-level).
+	w.SetClipboardString("scoped-clip")
+	check("Window.GetClipboardString round-trip",
+		w.GetClipboardString() == "scoped-clip", w.GetClipboardString())
+
+	// Native handle accessor.
+	check("GetCocoaWindow non-zero", w.GetCocoaWindow() != 0,
+		fmt.Sprintf("0x%x", w.GetCocoaWindow()))
+
+	// HiDPI: monitor content scale.
+	if pm := glfw.GetPrimaryMonitor(); pm != nil {
+		sx, sy := pm.GetContentScale()
+		check("Monitor.GetContentScale >= 1.0", sx >= 1.0 && sy >= 1.0,
+			fmt.Sprintf("(%.2f, %.2f)", sx, sy))
+	}
+
 	w.Destroy()
 	check("Destroy: no panic", true, "")
+
+	// Vulkan loader address — may be nil if MoltenVK absent (CI runner case).
+	procAddr := glfw.GetVulkanGetInstanceProcAddress()
+	check("GetVulkanGetInstanceProcAddress: ran without panic", true,
+		fmt.Sprintf("addr=%v", procAddr))
+
+	// Joystick.GetGamepadState method form (no device on CI → nil).
+	check("Joystick.GetGamepadState() method form: no device returns nil",
+		glfw.Joystick1.GetGamepadState() == nil, "")
 
 	glfw.DefaultWindowHints() // restore defaults
 }

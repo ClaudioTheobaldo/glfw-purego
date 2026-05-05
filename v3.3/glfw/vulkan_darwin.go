@@ -58,6 +58,20 @@ func loadVulkan() error {
 // VulkanSupported returns true if a Vulkan/MoltenVK loader is available.
 func VulkanSupported() bool { return loadVulkan() == nil }
 
+// GetVulkanGetInstanceProcAddress returns the address of vkGetInstanceProcAddr
+// (cast to unsafe.Pointer), or nil if MoltenVK / the Vulkan loader could not
+// be loaded.
+func GetVulkanGetInstanceProcAddress() unsafe.Pointer {
+	if loadVulkan() != nil {
+		return nil
+	}
+	addr, err := purego.Dlsym(vulkanLib, "vkGetInstanceProcAddr")
+	if err != nil || addr == 0 {
+		return nil
+	}
+	return nativePtrFromUintptr(addr)
+}
+
 // GetRequiredInstanceExtensions returns the Vulkan instance extensions required
 // to create a Metal surface on macOS.
 func GetRequiredInstanceExtensions() []string {

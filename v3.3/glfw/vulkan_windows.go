@@ -37,6 +37,19 @@ func loadVulkan() error {
 // VulkanSupported reports whether a Vulkan loader is available on this system.
 func VulkanSupported() bool { return loadVulkan() == nil }
 
+// GetVulkanGetInstanceProcAddress returns the address of vkGetInstanceProcAddr
+// (cast to unsafe.Pointer), or nil if vulkan-1.dll could not be loaded.
+func GetVulkanGetInstanceProcAddress() unsafe.Pointer {
+	if loadVulkan() != nil || procVkGetInstProcAddr == nil {
+		return nil
+	}
+	addr := procVkGetInstProcAddr.Addr()
+	if addr == 0 {
+		return nil
+	}
+	return nativePtrFromUintptr(addr)
+}
+
 // GetRequiredInstanceExtensions returns the Vulkan instance extensions required
 // by glfw-purego to create a Win32 window surface.
 func GetRequiredInstanceExtensions() []string {

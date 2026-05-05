@@ -221,6 +221,12 @@ var wl struct {
 	pendingOffer        uintptr    // wl_data_offer* awaiting selection event
 	clipboardSrcListener *[3]uintptr // keeps the data-source listener alive
 
+	// Drag-and-drop state (set by wl_data_device.enter, cleared on leave/drop).
+	dndOffer  uintptr  // current DnD wl_data_offer*, 0 when no drag is active
+	dndWin    *Window  // window the drag is currently over
+	dndX      float64  // pointer X within the window (in surface-local coords)
+	dndY      float64  // pointer Y within the window
+
 	// Per-frame discrete-scroll tracking (reset in wl_pointer.frame)
 	axisDiscrete [2]bool
 }
@@ -378,7 +384,24 @@ func wlOnRegistryGlobal(data, registry uintptr, name uint32, ifacePtr uintptr, v
 }
 
 func wlOnRegistryGlobalRemove(data, registry uintptr, name uint32) {
-	// TODO: handle output hot-unplug
+	// Look for a wl_output whose advertised name matches; if found, fire the
+	// monitor disconnect callback and remove it from the live list.
+	for i, out := range wl.outputs {
+		if out.monitor != nil && out.monitor.outputID == name {
+			gone := out.monitor
+			// Remove from the slice before firing the callback so re-entrant
+			// GetMonitors during the callback observes a consistent state.
+			wl.outputs = append(wl.outputs[:i], wl.outputs[i+1:]...)
+			if wl.monitorCb != nil {
+				wl.monitorCb(gone, Disconnected)
+			}
+			// Also destroy the proxy to free the protocol resource.
+			if out.proxy != 0 {
+				wlProxyDestroy(out.proxy)
+			}
+			return
+		}
+	}
 }
 
 // wlBind calls wl_registry.bind to obtain a proxy for a global.

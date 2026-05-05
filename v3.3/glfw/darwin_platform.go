@@ -114,6 +114,13 @@ var (
 	selSetStyleMask             = objc.RegisterName("setStyleMask:")
 	selSetHasShadow             = objc.RegisterName("setHasShadow:")
 	selInvalidateCursorRects    = objc.RegisterName("invalidateCursorRectsForView:")
+	selSetLevel                 = objc.RegisterName("setLevel:")
+	selIsVisible                = objc.RegisterName("isVisible")
+	selSetContentMinSize        = objc.RegisterName("setContentMinSize:")
+	selSetContentMaxSize        = objc.RegisterName("setContentMaxSize:")
+	selSetContentAspectRatio    = objc.RegisterName("setContentAspectRatio:")
+	selToggleFullScreen         = objc.RegisterName("toggleFullScreen:")
+	selSetCollectionBehavior    = objc.RegisterName("setCollectionBehavior:")
 
 	// NSView
 	selInitWithFrame    = objc.RegisterName("initWithFrame:")
@@ -633,9 +640,11 @@ func SetJoystickCallback(cb func(joy Joystick, event PeripheralEvent)) {
 
 // ── Input features ────────────────────────────────────────────────────────────
 
-// RawMouseMotionSupported returns true if raw (unaccelerated) mouse motion is
-// available. macOS supports it via IOHIDManager; stub returns false until wired.
-func RawMouseMotionSupported() bool { return false }
+// RawMouseMotionSupported returns true on macOS.  The disabled-cursor path
+// uses CGAssociateMouseAndMouseCursorPosition(false) and reads NSEvent
+// deltaX/deltaY which are unfiltered HID deltas — the same behaviour upstream
+// GLFW provides on macOS.
+func RawMouseMotionSupported() bool { return true }
 
 // ── Context ───────────────────────────────────────────────────────────────────
 

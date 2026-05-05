@@ -504,3 +504,9 @@ func GetProcAddress(name string) unsafe.Pointer { return base.GetProcAddress(nam
 
 func VulkanSupported() bool                     { return base.VulkanSupported() }
 func GetRequiredInstanceExtensions() []string   { return base.GetRequiredInstanceExtensions() }
+
+// GetVulkanGetInstanceProcAddress returns the address of vkGetInstanceProcAddr,
+// or nil if a Vulkan loader is not available.  Mirrors upstream go-gl/glfw v3.3.
+func GetVulkanGetInstanceProcAddress() unsafe.Pointer {
+	return base.GetVulkanGetInstanceProcAddress()
+}

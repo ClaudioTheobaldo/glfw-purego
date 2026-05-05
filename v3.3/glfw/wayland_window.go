@@ -446,8 +446,29 @@ func (w *Window) SetMonitor(monitor *Monitor, xpos, ypos, width, height, refresh
 	wlDisplayFlush(wl.display)
 }
 
-// GetMonitor returns the monitor the window is fullscreen on, or nil.
-func (w *Window) GetMonitor() *Monitor { return w.fsMonitor }
+// GetMonitor returns the monitor the window is currently displayed on.
+//
+// If the window is fullscreen, returns the explicitly-requested fullscreen
+// monitor.  Otherwise returns the highest-scale monitor among the wl_outputs
+// the surface has entered (mirrors GetContentScale's heuristic), or nil if
+// the surface has not been associated with any output yet.
+//
+func (w *Window) GetMonitor() *Monitor {
+	if w.fsMonitor != nil {
+		return w.fsMonitor
+	}
+	var best *Monitor
+	var bestScale int32
+	for _, outProxy := range w.wlEnteredOuts {
+		for _, out := range wl.outputs {
+			if out.proxy == outProxy && out.monitor != nil && out.scale >= bestScale {
+				best = out.monitor
+				bestScale = out.scale
+			}
+		}
+	}
+	return best
+}
 
 // ── Attributes ───────────────────────────────────────────────────────────────
 
@@ -545,5 +566,34 @@ func SwapInterval(interval int) {
 	eglSwapIntervalNow(interval)
 }
 
-// ExtensionSupported reports whether an OpenGL extension is available (stub).
-func ExtensionSupported(extension string) bool { return false }
+// ExtensionSupported reports whether an EGL or OpenGL extension string is
+// supported by the current EGL display.  Returns false if EGL is not loaded.
+//
+// Performs a substring scan of EGL_EXTENSIONS — callers should pass the full
+// extension token (e.g. "EGL_KHR_image_base") to avoid prefix collisions.
+func ExtensionSupported(extension string) bool {
+	if !eglLibLoaded || eglSharedDisplay == 0 || extension == "" {
+		return false
+	}
+	const _EGL_EXTENSIONS = int32(0x3055)
+	cstr := eglQueryString(eglSharedDisplay, _EGL_EXTENSIONS)
+	if cstr == 0 {
+		return false
+	}
+	exts := cString(cstr)
+	// Word-boundary match: avoid matching "FOO" inside "FOO_BAR".
+	for len(exts) > 0 {
+		i := 0
+		for i < len(exts) && exts[i] != ' ' {
+			i++
+		}
+		if exts[:i] == extension {
+			return true
+		}
+		if i == len(exts) {
+			break
+		}
+		exts = exts[i+1:]
+	}
+	return false
+}

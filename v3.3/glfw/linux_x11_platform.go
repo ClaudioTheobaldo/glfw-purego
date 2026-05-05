@@ -106,6 +106,7 @@ var (
 	xConvertSelection          func(display uintptr, selection, target, property, requestor, time uint64)
 	xCheckTypedEvent           func(display uintptr, eventType int32, ev uintptr) int32
 	xCreateSimpleWindow        func(display uintptr, parent uint64, x, y int32, width, height, borderWidth uint32, border, background uint64) uint64
+	xGetInputFocus             func(display uintptr, focusReturn, revertReturn uintptr) int32
 
 	// XInput2 generic event support (Group 6)
 	xGetEventData  func(display uintptr, cookie uintptr) int32
@@ -173,6 +174,7 @@ func loadX11() error {
 	purego.RegisterLibFunc(&xConvertSelection, libX11Handle, "XConvertSelection")
 	purego.RegisterLibFunc(&xCheckTypedEvent, libX11Handle, "XCheckTypedEvent")
 	purego.RegisterLibFunc(&xCreateSimpleWindow, libX11Handle, "XCreateSimpleWindow")
+	purego.RegisterLibFunc(&xGetInputFocus, libX11Handle, "XGetInputFocus")
 	purego.RegisterLibFunc(&xGetEventData, libX11Handle, "XGetEventData")
 	purego.RegisterLibFunc(&xFreeEventData, libX11Handle, "XFreeEventData")
 	purego.RegisterLibFunc(&xQueryExtension, libX11Handle, "XQueryExtension")

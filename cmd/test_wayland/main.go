@@ -106,6 +106,27 @@ func testWindow() {
 		check("Destroy: no panic", true, "")
 	}()
 
+	// ── Phase 1-9 parity additions ────────────────────────────────────────
+	check("Window.GetWaylandWindow non-zero", w.GetWaylandWindow() != 0,
+		fmt.Sprintf("0x%x", w.GetWaylandWindow()))
+	check("GetWaylandDisplay non-zero", glfw.GetWaylandDisplay() != 0,
+		fmt.Sprintf("0x%x", glfw.GetWaylandDisplay()))
+	w.Show()
+	check("Window.Show: no panic", true, "")
+
+	sx, sy := w.GetContentScale()
+	check("Window.GetContentScale >= 1.0", sx >= 1.0 && sy >= 1.0,
+		fmt.Sprintf("(%.2f, %.2f)", sx, sy))
+
+	w.SetClipboardString("wl-scoped")
+	check("Window.GetClipboardString round-trip",
+		w.GetClipboardString() == "wl-scoped", w.GetClipboardString())
+
+	// Vulkan loader address (may be nil if no Vulkan installed; just no panic).
+	procAddr := glfw.GetVulkanGetInstanceProcAddress()
+	check("GetVulkanGetInstanceProcAddress: ran without panic", true,
+		fmt.Sprintf("addr=%v", procAddr))
+
 	// Size
 	width, height := w.GetSize()
 	check("GetSize > 0", width > 0 && height > 0,

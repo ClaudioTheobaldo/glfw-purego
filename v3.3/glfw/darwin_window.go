@@ -262,9 +262,41 @@ func (w *Window) GetContentScale() (x, y float32) {
 // GetMonitor returns the monitor the window is fullscreened on, or nil.
 func (w *Window) GetMonitor() *Monitor { return w.fsMonitor }
 
-// SetMonitor switches the window between fullscreen and windowed mode.
-// Phase D will implement real monitor selection.
+// SetMonitor switches the window between fullscreen and windowed mode using
+// the modern Cocoa toggleFullScreen: API.  Native macOS fullscreen is a Spaces
+// transition rather than a CGDisplayCapture; this matches what upstream GLFW
+// 3.3 does on macOS.
+//
+// Note: per-monitor selection (xpos / ypos / refreshRate) is honoured only as
+// far as Cocoa allows — toggleFullScreen: targets the screen the window is
+// currently on.  To force a specific monitor, move the window first.
 func (w *Window) SetMonitor(monitor *Monitor, xpos, ypos, width, height, refreshRate int) {
+	nswin := w.nsWin()
+	wasFullscreen := w.fsMonitor != nil
+	want := monitor != nil
+
+	// Ensure the window can enter native fullscreen.
+	if want && !wasFullscreen {
+		nswin.Send(selSetCollectionBehavior, nsWindowCollectionBehaviorFullScreenPrimary)
+	}
+
+	// Request the transition only if the current state differs from the target.
+	if want != wasFullscreen {
+		nswin.Send(selToggleFullScreen, objc.ID(0))
+	}
+
+	if !want {
+		// Restore the requested windowed-mode size & position.
+		if width > 0 && height > 0 {
+			nswin.Send(selSetContentSize, NSSize{Width: float64(width), Height: float64(height)})
+		}
+		if xpos != 0 || ypos != 0 {
+			nswin.Send(selSetFrameOrigin, NSPoint{
+				X: float64(xpos),
+				Y: glfwToCocoa(nswin, ypos, float64(height)),
+			})
+		}
+	}
 	w.fsMonitor = monitor
 }
 
@@ -334,7 +366,13 @@ func (w *Window) SetAttrib(hint Hint, value int) {
 		}
 		w.nsWin().Send(selSetStyleMask, current)
 	case Floating:
-		// TODO: NSWindowLevelFloating
+		// NSNormalWindowLevel = 0, NSFloatingWindowLevel = 3.
+		// CGWindowLevelKey: kCGNormalWindowLevelKey / kCGFloatingWindowLevelKey.
+		level := int64(0)
+		if value != 0 {
+			level = 3
+		}
+		w.nsWin().Send(selSetLevel, level)
 	case Resizable:
 		current := objc.Send[uint64](w.nsWin(), selStyleMask)
 		if value != 0 {
@@ -363,9 +401,13 @@ func (w *Window) GetAttrib(hint Hint) int {
 			return 1
 		}
 	case Visible:
-		// NSWindow.isVisible not stubbed here; use frame origin heuristic.
-		// Phase B will refine.
-		if nswin.Send(selScreen) != 0 {
+		if bool(objc.Send[bool](nswin, selIsVisible)) {
+			return 1
+		}
+	case Floating:
+		// Floating: window level > NSNormalWindowLevel (0).
+		level := objc.Send[int64](nswin, objc.RegisterName("level"))
+		if level > 0 {
 			return 1
 		}
 	case Decorated:
@@ -384,17 +426,47 @@ func (w *Window) GetAttrib(hint Hint) int {
 
 // ── Size limits / aspect ratio ────────────────────────────────────────────────
 
-// SetSizeLimits sets minimum and maximum window dimensions.
+// SetSizeLimits sets minimum and maximum content-area dimensions.
+// Pass DontCare (-1) to clear a limit.
 func (w *Window) SetSizeLimits(minWidth, minHeight, maxWidth, maxHeight int) {
 	w.minW, w.minH = minWidth, minHeight
 	w.maxW, w.maxH = maxWidth, maxHeight
-	// TODO: wire to [nsWin setMinSize:] / [nsWin setMaxSize:]
+	nswin := w.nsWin()
+	// CGFloat is float64 on amd64+arm64; use a large sentinel for DontCare.
+	const cgFloatMax = 1.0e9
+	minSz := NSSize{Width: cgFloatMax, Height: cgFloatMax}
+	if minWidth >= 0 {
+		minSz.Width = float64(minWidth)
+	} else {
+		minSz.Width = 0
+	}
+	if minHeight >= 0 {
+		minSz.Height = float64(minHeight)
+	} else {
+		minSz.Height = 0
+	}
+	maxSz := NSSize{Width: cgFloatMax, Height: cgFloatMax}
+	if maxWidth >= 0 {
+		maxSz.Width = float64(maxWidth)
+	}
+	if maxHeight >= 0 {
+		maxSz.Height = float64(maxHeight)
+	}
+	nswin.Send(selSetContentMinSize, minSz)
+	nswin.Send(selSetContentMaxSize, maxSz)
 }
 
-// SetAspectRatio locks the window's resize aspect ratio.
+// SetAspectRatio locks the window's content-area resize aspect ratio.
+// Pass (0, 0) to disable the constraint.
 func (w *Window) SetAspectRatio(numer, denom int) {
 	w.aspectNum, w.aspectDen = numer, denom
-	// TODO: wire to [nsWin setResizeIncrements:] or windowWillResize:toSize:
+	nswin := w.nsWin()
+	if numer <= 0 || denom <= 0 {
+		// Pass NSZeroSize to clear the constraint.
+		nswin.Send(selSetContentAspectRatio, NSSize{Width: 0, Height: 0})
+		return
+	}
+	nswin.Send(selSetContentAspectRatio, NSSize{Width: float64(numer), Height: float64(denom)})
 }
 
 // ── Opacity ───────────────────────────────────────────────────────────────────

@@ -327,7 +327,29 @@ func (w *Window) GetAttrib(attrib Hint) int {
 		}
 		return 0
 	case Focused:
-		return 0 // would need XGetInputFocus
+		var focusWin uint64
+		var revert int32
+		xGetInputFocus(x11Display,
+			uintptr(unsafe.Pointer(&focusWin)),
+			uintptr(unsafe.Pointer(&revert)))
+		if focusWin == uint64(w.handle) {
+			return 1
+		}
+		return 0
+	case Iconified:
+		// EWMH iconified state is indicated by _NET_WM_STATE_HIDDEN.
+		if isNetWMStateSet(uint64(w.handle), atomNETWMStateHidden) {
+			return 1
+		}
+		return 0
+	case Maximized:
+		// EWMH: _NET_WM_STATE list contains both _NET_WM_STATE_MAXIMIZED_VERT
+		// and _HORZ when maximized.
+		if isNetWMStateSet(uint64(w.handle), atomNETWMStateMaxV) &&
+			isNetWMStateSet(uint64(w.handle), atomNETWMStateMaxH) {
+			return 1
+		}
+		return 0
 	case Resizable:
 		return 1
 	case Decorated:
@@ -336,8 +358,54 @@ func (w *Window) GetAttrib(attrib Hint) int {
 	return 0
 }
 
-// GetMonitor returns the monitor the window is currently on, or nil.
-func (w *Window) GetMonitor() *Monitor { return nil }
+// isNetWMStateSet returns true if `atom` appears in the window's
+// _NET_WM_STATE list (EWMH).
+func isNetWMStateSet(window, atom uint64) bool {
+	if atomNETWMState == 0 || atom == 0 {
+		return false
+	}
+	var actualType uint64
+	var actualFormat int32
+	var nItems, bytesAfter uint64
+	var data uintptr
+	if xGetWindowProperty(x11Display, window, atomNETWMState,
+		0, 1024, 0, 4 /* XA_ATOM */,
+		uintptr(unsafe.Pointer(&actualType)),
+		uintptr(unsafe.Pointer(&actualFormat)),
+		uintptr(unsafe.Pointer(&nItems)),
+		uintptr(unsafe.Pointer(&bytesAfter)),
+		uintptr(unsafe.Pointer(&data))) != 0 || data == 0 {
+		return false
+	}
+	defer xFree(data)
+	for i := uint64(0); i < nItems; i++ {
+		a := *(*uint64)(unsafe.Add(nativePtrFromUintptr(data), uintptr(i)*8))
+		if a == atom {
+			return true
+		}
+	}
+	return false
+}
+
+// GetMonitor returns the monitor whose XRandR bounds contain the window's
+// centre point, or nil if no monitor matches (or XRandR is unavailable).
+func (w *Window) GetMonitor() *Monitor {
+	if x11Display == 0 || w.handle == 0 {
+		return nil
+	}
+	var wa _XWindowAttributes
+	xGetWindowAttributes(x11Display, uint64(w.handle), uintptr(unsafe.Pointer(&wa)))
+	cx := int(wa.X) + int(wa.Width)/2
+	cy := int(wa.Y) + int(wa.Height)/2
+
+	monitors, _ := GetMonitors()
+	for _, m := range monitors {
+		if cx >= m.x && cx < m.x+m.widthPx && cy >= m.y && cy < m.y+m.heightPx {
+			return m
+		}
+	}
+	return nil
+}
 
 // ----------------------------------------------------------------------------
 // Window — input

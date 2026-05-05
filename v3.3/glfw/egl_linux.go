@@ -72,6 +72,7 @@ var (
 	eglGetCurrentDisplay   func() uintptr
 	eglGetError            func() int32
 	eglBindAPI             func(api uintptr) bool
+	eglQueryString         func(dpy uintptr, name int32) uintptr // returns const char*
 )
 
 var (
@@ -114,6 +115,7 @@ func loadEGL() error {
 	purego.RegisterLibFunc(&eglGetCurrentDisplay, libEGLHandle, "eglGetCurrentDisplay")
 	purego.RegisterLibFunc(&eglGetError, libEGLHandle, "eglGetError")
 	purego.RegisterLibFunc(&eglBindAPI, libEGLHandle, "eglBindAPI")
+	purego.RegisterLibFunc(&eglQueryString, libEGLHandle, "eglQueryString")
 
 	eglLibLoaded = true
 	return nil

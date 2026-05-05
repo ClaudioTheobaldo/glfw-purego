@@ -42,6 +42,22 @@ func loadVulkan() error {
 // VulkanSupported reports whether a Vulkan loader is available on this system.
 func VulkanSupported() bool { return loadVulkan() == nil }
 
+// GetVulkanGetInstanceProcAddress returns the address of vkGetInstanceProcAddr
+// (cast to unsafe.Pointer), or nil if the Vulkan loader could not be loaded.
+//
+// Mirrors upstream go-gl/glfw v3.3.  Useful for hand-rolled Vulkan loaders
+// (e.g. vulkan-go) that need to bootstrap from a known function pointer.
+func GetVulkanGetInstanceProcAddress() unsafe.Pointer {
+	if loadVulkan() != nil {
+		return nil
+	}
+	addr, err := purego.Dlsym(vulkanHandle, "vkGetInstanceProcAddr")
+	if err != nil || addr == 0 {
+		return nil
+	}
+	return nativePtrFromUintptr(addr)
+}
+
 // GetRequiredInstanceExtensions returns the Vulkan instance extensions required
 // by glfw-purego to create an Xlib window surface.
 func GetRequiredInstanceExtensions() []string {

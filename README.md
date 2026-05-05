@@ -34,15 +34,19 @@ The tag selects the backend at compile time; the resulting binary only links aga
 
 ### Wayland limitations
 
+These reflect protocol-level constraints and won't be fixed:
+
 | Feature | Status |
 |---------|--------|
 | `GetPos` / `SetPos` | Always (0, 0) — xdg_toplevel has no position request |
 | `Hide` | No-op — use `Iconify` or `Destroy` |
+| `Focus` | No-op — clients cannot steal focus |
 | `SetCursorPos` | No-op — clients cannot warp the pointer |
-| `RawMouseMotion` | Always false — zwp_relative_pointer not wired yet |
-| Custom cursors (`CreateCursor`) | Stub — wl_shm path not implemented |
 | Gamma ramps | No-op — not exposed by Wayland |
 | Window opacity | No-op — compositor-side only |
+| `RawMouseMotion` | Always false — `zwp_relative_pointer` not wired |
+| `RequestAttention` | No-op — `xdg_activation_v1` not wired |
+| Custom cursor images (`CreateCursor`) | Stub — `wl_shm` upload path not implemented |
 
 ---
 

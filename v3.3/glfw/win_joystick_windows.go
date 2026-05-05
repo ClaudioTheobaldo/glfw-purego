@@ -264,10 +264,45 @@ func GetGamepadState(joy Joystick, state *GamepadState) bool {
 // On Windows XInput devices are always recognised; this is a no-op.
 func UpdateGamepadMappings(mappings string) bool { return true }
 
+// joystickCallback / joystickConnected drive poll-based connect/disconnect
+// detection: WM_DEVICECHANGE requires a message-only window which doesn't fit
+// our event loop, so we instead scan XInput slots in PollEvents and fire the
+// callback on edge transitions.
+var (
+	joystickCallback  func(joy Joystick, event PeripheralEvent)
+	joystickConnected [4]bool
+)
+
 // SetJoystickCallback sets a callback for joystick connect/disconnect events.
-// Note: polling is required; this callback is not automatically invoked on Windows.
+// The callback fires from inside PollEvents whenever an XInput slot's
+// connection state changes from the previous poll.
 func SetJoystickCallback(cb func(joy Joystick, event PeripheralEvent)) {
-	// TODO: implement via device notifications (WM_DEVICECHANGE)
+	joystickCallback = cb
+	// Seed the connected state so the very first PollEvents doesn't spuriously
+	// report all currently-connected pads as freshly Connected.
+	for i := uint32(0); i < 4; i++ {
+		_, present := xinputGetState(i)
+		joystickConnected[i] = present
+	}
+}
+
+// pollJoystickConnections re-scans XInput slots and fires the callback on
+// state transitions.  Cheap (4 small syscalls); safe to call every frame.
+func pollJoystickConnections() {
+	if joystickCallback == nil {
+		return
+	}
+	for i := uint32(0); i < 4; i++ {
+		_, present := xinputGetState(i)
+		if present != joystickConnected[i] {
+			joystickConnected[i] = present
+			ev := Disconnected
+			if present {
+				ev = Connected
+			}
+			joystickCallback(Joystick(i), ev)
+		}
+	}
 }
 
 // normAxisShort normalises a signed int16 thumb-stick value to [-1, 1].
