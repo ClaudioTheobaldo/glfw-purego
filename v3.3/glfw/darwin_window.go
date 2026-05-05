@@ -490,9 +490,16 @@ func (w *Window) RequestAttention() {
 // ── OpenGL context ────────────────────────────────────────────────────────────
 
 // MakeContextCurrent makes this window's OpenGL context current on this thread.
+//
+// We also call [NSOpenGLContext update] so that the drawable backing store is
+// re-allocated against the view's current geometry.  Without this, a context
+// created against a 0×0 view (e.g. before Show()) keeps that 0×0 drawable
+// even after the window is laid out, causing glClear to write to nothing
+// and glReadPixels to return zeros.
 func (w *Window) MakeContextCurrent() {
 	if w.nsglContext != 0 {
 		objc.ID(w.nsglContext).Send(selNSGLMakeCurrentContext)
+		objc.ID(w.nsglContext).Send(selNSGLUpdate)
 	}
 	darwinCurrentWindow = w
 }
