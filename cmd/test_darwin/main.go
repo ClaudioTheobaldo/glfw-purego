@@ -366,9 +366,11 @@ func testWindowCallbacks(w *glfw.Window) {
 	}
 
 	for _, c := range cases {
+		// Note: comparing `any == nil` is false when the dynamic type is
+		// a non-nil function-type holding a nil value, so use funcID.
 		prev1 := c.set1()
-		check(c.name+": first-set returns nil", prev1 == nil,
-			fmt.Sprintf("got %v", prev1))
+		check(c.name+": first-set returns nil func", funcID(prev1) == 0,
+			fmt.Sprintf("id=0x%x", funcID(prev1)))
 		prev2 := c.set2()
 		check(c.name+": second-set returns previous (non-nil)",
 			funcID(prev2) != 0, "")

@@ -825,8 +825,8 @@ func testCallbacks(w *glfw.Window) {
 	}
 	for _, c := range cases {
 		prev1 := c.set1()
-		check(c.name+": first-set returns nil", prev1 == nil,
-			fmt.Sprintf("got %v", prev1))
+		check(c.name+": first-set returns nil func", funcID(prev1) == 0,
+			fmt.Sprintf("id=0x%x", funcID(prev1)))
 		prev2 := c.set2()
 		check(c.name+": second-set returns previous (non-nil)",
 			funcID(prev2) != 0, "")
