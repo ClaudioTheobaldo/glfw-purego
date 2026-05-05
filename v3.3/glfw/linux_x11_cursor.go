@@ -32,15 +32,31 @@ const (
 // ----------------------------------------------------------------------------
 
 // _XcursorImage mirrors XcursorImage from Xcursor.h.
-// 6×uint32 = 24 bytes before Pixels; 24 is already 8-byte aligned, so no padding.
+//
+// C layout on 64-bit (40 bytes):
+//   offset  0: version  uint32
+//   offset  4: size     uint32
+//   offset  8: width    uint32
+//   offset 12: height   uint32
+//   offset 16: xhot     uint32
+//   offset 20: yhot     uint32
+//   offset 24: delay    uint32        ← previously missing
+//   offset 28: [4 bytes padding for pointer alignment]
+//   offset 32: pixels   XcursorPixel* (ARGB, 32-bit per pixel)
+//
+// Omitting the delay field caused Pixels to be read from offset 24, which is
+// actually the delay value (0 in practice), producing a NULL dereference in
+// CreateCursor on every libXcursor version.
 type _XcursorImage struct {
-	Version uint32  // offset 0
-	Size    uint32  // offset 4
-	Width   uint32  // offset 8
+	Version uint32  // offset  0
+	Size    uint32  // offset  4
+	Width   uint32  // offset  8
 	Height  uint32  // offset 12
 	XHot    uint32  // offset 16
 	YHot    uint32  // offset 20
-	Pixels  uintptr // offset 24 — XcursorPixel* (ARGB, 32-bit per pixel)
+	Delay   uint32  // offset 24
+	_       uint32  // offset 28 (pad to 8-byte align Pixels)
+	Pixels  uintptr // offset 32 — XcursorPixel*
 }
 
 // _XColor mirrors the C XColor struct (16 bytes on 64-bit Linux).
