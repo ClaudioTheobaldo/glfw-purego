@@ -8,6 +8,7 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego"
+	"golang.org/x/sys/unix"
 )
 
 // ── libwayland-cursor loader ──────────────────────────────────────────────────
@@ -167,11 +168,86 @@ func CreateStandardCursor(shape StandardCursorShape) (*Cursor, error) {
 
 // ── CreateCursor (custom RGBA image) ─────────────────────────────────────────
 
-// CreateCursor creates a cursor from an arbitrary RGBA image.
-// Wayland requires a wl_shm-backed buffer for custom cursors; that path is not
-// yet implemented — this returns a working (but invisible) stub cursor.
+// CreateCursor creates a cursor from an arbitrary RGBA image, backed by a
+// shared-memory wl_buffer.  The buffer stays mapped for the cursor's lifetime
+// and is released by DestroyCursor.  Returns an empty (invisible) cursor if
+// wl_shm is unavailable or the underlying memfd/mmap calls fail.
 func CreateCursor(image *Image, xhot, yhot int) (*Cursor, error) {
-	return &Cursor{wlHotX: int32(xhot), wlHotY: int32(yhot)}, nil
+	if image == nil || image.Width <= 0 || image.Height <= 0 ||
+		wl.shm == 0 || wlShmPoolIfaceAddr == 0 || wlBufferIfaceAddr == 0 {
+		return &Cursor{wlHotX: int32(xhot), wlHotY: int32(yhot)}, nil
+	}
+	w, h := image.Width, image.Height
+	stride := w * 4
+	size := stride * h
+
+	// 1. Anonymous shared-memory file via memfd_create (Linux 3.17+).
+	fd, err := unix.MemfdCreate("glfw-cursor", unix.MFD_CLOEXEC)
+	if err != nil {
+		return &Cursor{wlHotX: int32(xhot), wlHotY: int32(yhot)}, nil
+	}
+	if err := unix.Ftruncate(fd, int64(size)); err != nil {
+		unix.Close(fd)
+		return &Cursor{wlHotX: int32(xhot), wlHotY: int32(yhot)}, nil
+	}
+	mmap, err := unix.Mmap(fd, 0, size, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+	if err != nil {
+		unix.Close(fd)
+		return &Cursor{wlHotX: int32(xhot), wlHotY: int32(yhot)}, nil
+	}
+
+	// 2. Convert input RGBA → ARGB8888 little-endian (B,G,R,A bytes) with
+	//    pre-multiplied alpha, which is what WL_SHM_FORMAT_ARGB8888 expects.
+	src := image.Pixels
+	for i := 0; i < w*h; i++ {
+		r := uint32(src[i*4+0])
+		g := uint32(src[i*4+1])
+		b := uint32(src[i*4+2])
+		a := uint32(src[i*4+3])
+		// Premultiply.
+		r = r * a / 255
+		g = g * a / 255
+		b = b * a / 255
+		// Little-endian byte order: [B, G, R, A].
+		mmap[i*4+0] = byte(b)
+		mmap[i*4+1] = byte(g)
+		mmap[i*4+2] = byte(r)
+		mmap[i*4+3] = byte(a)
+	}
+
+	// 3. wl_shm.create_pool opcode=0, signature="nhi" (new_id, fd, size).
+	pool := wlProxyMarshalFlags(wl.shm, 0, wlShmPoolIfaceAddr, 1, 0,
+		uintptr(0), uintptr(fd), uintptr(size))
+	if pool == 0 {
+		_ = unix.Munmap(mmap)
+		unix.Close(fd)
+		return &Cursor{wlHotX: int32(xhot), wlHotY: int32(yhot)}, nil
+	}
+
+	// 4. wl_shm_pool.create_buffer opcode=0,
+	//    signature="niiiiu" (new_id, offset, w, h, stride, format).
+	const _WL_SHM_FORMAT_ARGB8888 = uint32(0)
+	buf := wlProxyMarshalFlags(pool, 0, wlBufferIfaceAddr, 1, 0,
+		uintptr(0), uintptr(0), uintptr(w), uintptr(h),
+		uintptr(stride), uintptr(_WL_SHM_FORMAT_ARGB8888))
+
+	// 5. Pool is no longer needed once the buffer is created.
+	wlProxyMarshalFlags(pool, 1, 0, 1, 1) // wl_shm_pool.destroy + free
+	unix.Close(fd)                          // pool/buffer keep the mapping live
+
+	if buf == 0 {
+		_ = unix.Munmap(mmap)
+		return &Cursor{wlHotX: int32(xhot), wlHotY: int32(yhot)}, nil
+	}
+
+	return &Cursor{
+		handle:    buf, // wl_buffer*
+		system:    false,
+		wlHotX:    int32(xhot),
+		wlHotY:    int32(yhot),
+		wlMmap:    mmap,
+		wlSurface: 0, // shared cursor surface is reused via wlEnsureCursorSurface
+	}, nil
 }
 
 // ── DestroyCursor ─────────────────────────────────────────────────────────────
@@ -184,8 +260,13 @@ func DestroyCursor(c *Cursor) {
 		return
 	}
 	// Custom cursor: the handle is a wl_buffer* we allocated via wl_shm.
+	// wl_buffer.destroy opcode=0.
 	wlProxyMarshalFlags(c.handle, 0, 0, 1, 1) // destroy + free
 	c.handle = 0
+	if c.wlMmap != nil {
+		_ = unix.Munmap(c.wlMmap)
+		c.wlMmap = nil
+	}
 }
 
 // ── SetCursor ─────────────────────────────────────────────────────────────────
@@ -215,8 +296,15 @@ func wlApplyCursor(c *Cursor) {
 		return
 	}
 
-	// Obtain the wl_buffer* for this cursor frame.
-	buf := wlCursorImageGetBuf(c.handle)
+	// For system cursors, c.handle is a wl_cursor_image*; resolve it to a
+	// wl_buffer*.  For custom cursors created via CreateCursor, c.handle is
+	// already a wl_buffer*.
+	var buf uintptr
+	if c.system {
+		buf = wlCursorImageGetBuf(c.handle)
+	} else {
+		buf = c.handle
+	}
 	if buf == 0 {
 		return
 	}

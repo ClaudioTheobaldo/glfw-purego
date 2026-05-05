@@ -53,6 +53,8 @@ var (
 	wlSeatIfaceAddr       uintptr // &wl_seat_interface
 	wlOutputIfaceAddr     uintptr // &wl_output_interface
 	wlShmIfaceAddr        uintptr // &wl_shm_interface
+	wlShmPoolIfaceAddr    uintptr // &wl_shm_pool_interface
+	wlBufferIfaceAddr     uintptr // &wl_buffer_interface
 	wlDDMgrIfaceAddr      uintptr // &wl_data_device_manager_interface
 	wlDDDeviceIfaceAddr   uintptr // &wl_data_device_interface
 	wlDDSourceIfaceAddr   uintptr // &wl_data_source_interface
@@ -95,6 +97,8 @@ func loadWaylandClient() error {
 		wlSeatIfaceAddr, _ = purego.Dlsym(wlClientHandle, "wl_seat_interface")
 		wlOutputIfaceAddr, _ = purego.Dlsym(wlClientHandle, "wl_output_interface")
 		wlShmIfaceAddr, _ = purego.Dlsym(wlClientHandle, "wl_shm_interface")
+		wlShmPoolIfaceAddr, _ = purego.Dlsym(wlClientHandle, "wl_shm_pool_interface")
+		wlBufferIfaceAddr, _ = purego.Dlsym(wlClientHandle, "wl_buffer_interface")
 		wlDDMgrIfaceAddr, _ = purego.Dlsym(wlClientHandle, "wl_data_device_manager_interface")
 		wlDDDeviceIfaceAddr, _ = purego.Dlsym(wlClientHandle, "wl_data_device_interface")
 		wlDDSourceIfaceAddr, _ = purego.Dlsym(wlClientHandle, "wl_data_source_interface")
@@ -178,6 +182,7 @@ var wl struct {
 	ddManager  uintptr // wl_data_device_manager*
 	dataDevice uintptr // wl_data_device*
 	decoMgr    uintptr // zxdg_decoration_manager_v1*
+	activation uintptr // xdg_activation_v1* (optional, may be 0)
 
 	pointer  uintptr // wl_pointer*
 	keyboard uintptr // wl_keyboard*
@@ -380,6 +385,9 @@ func wlOnRegistryGlobal(data, registry uintptr, name uint32, ifacePtr uintptr, v
 	case "zxdg_decoration_manager_v1":
 		wl.decoMgr = wlBind(registry, name,
 			uintptr(unsafe.Pointer(&xdgDecoMgrIface)), ifacePtr, version, 1)
+	case "xdg_activation_v1":
+		wl.activation = wlBind(registry, name,
+			uintptr(unsafe.Pointer(&xdgActivationIface)), ifacePtr, version, 1)
 	}
 }
 
@@ -660,7 +668,58 @@ func (w *Window) GetFrameSize() (left, top, right, bottom int)       { return 0,
 func GetWindowFrameSize(w *Window) (left, top, right, bottom int)    { return 0, 0, 0, 0 }
 func (w *Window) GetOpacity() float32                                 { return 1.0 }
 func (w *Window) SetOpacity(_ float32)                                {}
-func (w *Window) RequestAttention()                                   {}
+// RequestAttention requests user attention via xdg_activation_v1 if the
+// compositor advertises it.  No-op when xdg_activation_v1 is unavailable.
+//
+// Performs a synchronous round-trip to wait for the token's "done" event
+// before issuing the activate request.
+func (w *Window) RequestAttention() {
+	if wl.activation == 0 || w.handle == 0 {
+		return
+	}
+	// 1. xdg_activation_v1.get_activation_token opcode=1, signature="n".
+	tok := wlProxyMarshalFlags(wl.activation, 1,
+		uintptr(unsafe.Pointer(&xdgActivationTokenIface)), 1, 0, 0)
+	if tok == 0 {
+		return
+	}
+
+	var tokenStr string
+	doneCb := purego.NewCallback(func(data, token, strPtr uintptr) {
+		tokenStr = cString(strPtr)
+	})
+	listener := [1]uintptr{doneCb}
+	wlProxyAddListener(tok, uintptr(unsafe.Pointer(&listener[0])), 0)
+
+	// 2. Set serial + surface so the compositor can validate the request.
+	if wl.seat != 0 {
+		// xdg_activation_token_v1.set_serial opcode=0, signature="uo".
+		wlProxyMarshalFlags(tok, 0, 0, 1, 0,
+			uintptr(wl.kbSerial), wl.seat)
+	}
+	// xdg_activation_token_v1.set_surface opcode=2, signature="o".
+	wlProxyMarshalFlags(tok, 2, 0, 1, 0, w.handle)
+	// xdg_activation_token_v1.commit opcode=3.
+	wlProxyMarshalFlags(tok, 3, 0, 1, 0)
+	wlDisplayFlush(wl.display)
+
+	// 3. Synchronously wait for the done(token) event.
+	wlDisplayRoundtrip(wl.display)
+	runtime.KeepAlive(listener)
+
+	if tokenStr != "" {
+		// 4. xdg_activation_v1.activate opcode=2, signature="so".
+		tokC := append([]byte(tokenStr), 0)
+		wlProxyMarshalFlags(wl.activation, 2, 0, 1, 0,
+			uintptr(unsafe.Pointer(&tokC[0])),
+			w.handle)
+		wlDisplayFlush(wl.display)
+		runtime.KeepAlive(tokC)
+	}
+
+	// 5. xdg_activation_token_v1.destroy opcode=4 (+ free).
+	wlProxyMarshalFlags(tok, 4, 0, 1, 1)
+}
 
 func (w *Window) SetSizeLimits(minWidth, minHeight, maxWidth, maxHeight int) {
 	w.minW, w.minH, w.maxW, w.maxH = minWidth, minHeight, maxWidth, maxHeight

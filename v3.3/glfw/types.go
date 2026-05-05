@@ -384,6 +384,11 @@ type Cursor struct {
 	system bool    // true = owned by system/theme, must not be individually destroyed
 	// Wayland-only hotspot coordinates (zero on Windows / X11).
 	wlHotX, wlHotY int32
+	// Wayland custom-cursor backing storage (zero unless the cursor was created
+	// via CreateCursor with an Image).  Kept mapped for the cursor's lifetime
+	// so the wl_buffer remains valid; released in DestroyCursor.
+	wlMmap     []byte // backing pixel data (mmaped region; use unix.Munmap)
+	wlSurface  uintptr // dedicated wl_surface for custom cursors
 }
 
 // Platform identifies the underlying window system (GLFW 3.4).

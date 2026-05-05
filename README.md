@@ -45,8 +45,7 @@ These reflect protocol-level constraints and won't be fixed:
 | Gamma ramps | No-op — not exposed by Wayland |
 | Window opacity | No-op — compositor-side only |
 | `RawMouseMotion` | Always false — `zwp_relative_pointer` not wired |
-| `RequestAttention` | No-op — `xdg_activation_v1` not wired |
-| Custom cursor images (`CreateCursor`) | Stub — `wl_shm` upload path not implemented |
+| `RequestAttention` | Best-effort — uses `xdg_activation_v1` when advertised, otherwise no-op |
 
 ---
 

@@ -73,6 +73,12 @@ var (
 	bGetTopDeco        = []byte("get_toplevel_decoration\x00")
 	bSetMode           = []byte("set_mode\x00")
 	bUnsetMode         = []byte("unset_mode\x00")
+	bGetActivationToken = []byte("get_activation_token\x00")
+	bActivate          = []byte("activate\x00")
+	bSetSerial         = []byte("set_serial\x00")
+	bSetSurface        = []byte("set_surface\x00")
+	bCommit            = []byte("commit\x00")
+	bDone              = []byte("done\x00")
 
 	// Signatures
 	sigEmpty     = []byte("\x00")
@@ -89,6 +95,9 @@ var (
 	sigOuii      = []byte("ouii\x00")
 	sigQoU       = []byte("?ou\x00") // set_fullscreen: optional output + nothing extra? Actually: ?o
 	sigQoOnly    = []byte("?o\x00")
+	sigSo        = []byte("so\x00") // xdg_activation_v1.activate (string + object)
+	sigUo        = []byte("uo\x00") // xdg_activation_token_v1.set_serial (uint + object)
+	sigO         = []byte("o\x00")  // xdg_activation_token_v1.set_surface (object)
 )
 
 func bptr(b []byte) uintptr { return uintptr(unsafe.Pointer(&b[0])) }
@@ -178,6 +187,32 @@ var (
 
 var sigII = []byte("ii\x00")
 
+// ── xdg_activation_v1 ────────────────────────────────────────────────────────
+
+var (
+	xdgActivationInterfaceName      = []byte("xdg_activation_v1\x00")
+	xdgActivationTokenInterfaceName = []byte("xdg_activation_token_v1\x00")
+
+	xdgActivationMethods = [3]cWlMessage{
+		{bptr(bDestroy), bptr(sigEmpty), wlNullTypesPtr()},          // 0: destroy
+		{bptr(bGetActivationToken), bptr(sigN), wlNullTypesPtr()},   // 1: get_activation_token (n)
+		{bptr(bActivate), bptr(sigSo), wlNullTypesPtr()},            // 2: activate (so)
+	}
+	xdgActivationIface cWlInterface2
+
+	xdgActivationTokenMethods = [5]cWlMessage{
+		{bptr(bSetSerial), bptr(sigUo), wlNullTypesPtr()},   // 0: set_serial (uo)
+		{bptr(bSetAppId), bptr(sigS), wlNullTypesPtr()},     // 1: set_app_id (s)
+		{bptr(bSetSurface), bptr(sigO), wlNullTypesPtr()},   // 2: set_surface (o)
+		{bptr(bCommit), bptr(sigEmpty), wlNullTypesPtr()},   // 3: commit
+		{bptr(bDestroy), bptr(sigEmpty), wlNullTypesPtr()},  // 4: destroy
+	}
+	xdgActivationTokenEvents = [1]cWlMessage{
+		{bptr(bDone), bptr(sigS), wlNullTypesPtr()}, // 0: done(token: string)
+	}
+	xdgActivationTokenIface cWlInterface2
+)
+
 // ── initProtocols wires up all cWlInterface2 structs ─────────────────────────
 
 func initProtocols() {
@@ -222,4 +257,18 @@ func initProtocols() {
 	xdgTopDecoIface.methods = uintptr(unsafe.Pointer(&xdgTopDecoMethods[0]))
 	xdgTopDecoIface.eventCount = 1
 	xdgTopDecoIface.events = uintptr(unsafe.Pointer(&xdgTopDecoEvents[0]))
+
+	// xdg_activation_v1
+	xdgActivationIface.name = uintptr(unsafe.Pointer(&xdgActivationInterfaceName[0]))
+	xdgActivationIface.version = 1
+	xdgActivationIface.methodCount = 3
+	xdgActivationIface.methods = uintptr(unsafe.Pointer(&xdgActivationMethods[0]))
+
+	// xdg_activation_token_v1
+	xdgActivationTokenIface.name = uintptr(unsafe.Pointer(&xdgActivationTokenInterfaceName[0]))
+	xdgActivationTokenIface.version = 1
+	xdgActivationTokenIface.methodCount = 5
+	xdgActivationTokenIface.methods = uintptr(unsafe.Pointer(&xdgActivationTokenMethods[0]))
+	xdgActivationTokenIface.eventCount = 1
+	xdgActivationTokenIface.events = uintptr(unsafe.Pointer(&xdgActivationTokenEvents[0]))
 }

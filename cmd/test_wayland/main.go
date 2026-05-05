@@ -127,6 +127,24 @@ func testWindow() {
 	check("GetVulkanGetInstanceProcAddress: ran without panic", true,
 		fmt.Sprintf("addr=%v", procAddr))
 
+	// RequestAttention: must not panic regardless of xdg_activation_v1 support.
+	w.RequestAttention()
+	check("RequestAttention: no panic", true, "")
+
+	// Custom cursor (4×4 ARGB image): must not panic and must produce a non-nil
+	// cursor handle when wl_shm is available.
+	pix := make([]byte, 4*4*4)
+	for i := range pix {
+		pix[i] = 0xFF // opaque white
+	}
+	custom, cerr := glfw.CreateCursor(&glfw.Image{Width: 4, Height: 4, Pixels: pix}, 0, 0)
+	check("CreateCursor: no error", cerr == nil, fmt.Sprintf("%v", cerr))
+	if custom != nil {
+		w.SetCursor(custom)
+		check("SetCursor(custom): no panic", true, "")
+		glfw.DestroyCursor(custom)
+	}
+
 	// Size
 	width, height := w.GetSize()
 	check("GetSize > 0", width > 0 && height > 0,
