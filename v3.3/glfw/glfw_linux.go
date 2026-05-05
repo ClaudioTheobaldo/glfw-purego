@@ -118,10 +118,23 @@ func (w *Window) SetMonitor(monitor *Monitor, xpos, ypos, width, height, refresh
 		xMoveResizeWindow(x11Display, uint64(w.handle), int32(xpos), int32(ypos), uint32(width), uint32(height))
 		w.sendNETWMState(_NET_WM_STATE_ADD, atomNETWMStateFull, 0)
 	} else {
-		// Exit fullscreen
+		// Exit fullscreen (or already windowed — just move/resize).
+		wasFullscreen := w.fsMonitor != nil
 		w.fsMonitor = nil
 		w.sendNETWMState(_NET_WM_STATE_REMOVE, atomNETWMStateFull, 0)
-		xMoveResizeWindow(x11Display, uint64(w.handle), int32(w.savedX), int32(w.savedY), uint32(w.savedW), uint32(w.savedH))
+		switch {
+		case wasFullscreen && w.savedW > 0 && w.savedH > 0:
+			// Restore the geometry captured before going fullscreen.
+			xMoveResizeWindow(x11Display, uint64(w.handle),
+				int32(w.savedX), int32(w.savedY),
+				uint32(w.savedW), uint32(w.savedH))
+		case width > 0 && height > 0:
+			// Honour the caller-supplied target geometry.
+			xMoveResizeWindow(x11Display, uint64(w.handle),
+				int32(xpos), int32(ypos),
+				uint32(width), uint32(height))
+		}
+		// Otherwise: nothing valid to apply — leave the window where it is.
 	}
 	xFlush(x11Display)
 }
