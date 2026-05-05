@@ -84,13 +84,17 @@ func Terminate() {
 	}
 }
 
-// GetTime returns the elapsed time in seconds since Init was called.
-// Implemented using the Windows high-resolution counter.
+// GetTime returns the elapsed time in seconds since Init was called, or
+// since the last SetTime — whichever happened most recently.
+//
+// timeGetTicks returns the count delta since the base; we add timerBaseT
+// (the value last passed to SetTime) so the seconds returned match the
+// expectation that GetTime() right after SetTime(N) is approximately N.
 func GetTime() float64 {
-	return float64(timeGetTicks()) / float64(timeFrequency())
+	return float64(timeGetTicks())/float64(timeFrequency()) + timeBaseT()
 }
 
-// SetTime resets the timer base.
+// SetTime resets the timer base so GetTime returns t immediately after.
 func SetTime(t float64) {
 	timeSetBase(t)
 }

@@ -128,7 +128,12 @@ func main() {
 
 	// Request a vanilla 2.1-class context on every platform.  Every backend's
 	// software-rendering fallback supports at least GL 2.1 / GLES 2.0.
-	glfw.WindowHint(glfw.Visible, 0)
+	//
+	// We deliberately do NOT pass Visible=0 — on macOS, NSOpenGLContext's
+	// drawable framebuffer is only allocated once the window's view is laid
+	// out by AppKit, which requires the window to be on-screen.  In CI the
+	// runners are headless or use software display servers, so a brief flash
+	// is invisible to humans and the framebuffer becomes valid.
 	glfw.WindowHint(glfw.Resizable, 0)
 	glfw.WindowHint(glfw.ContextVersionMajor, 2)
 	glfw.WindowHint(glfw.ContextVersionMinor, 1)
@@ -141,6 +146,12 @@ func main() {
 		os.Exit(1)
 	}
 	defer w.Destroy()
+
+	// Pump events so the window is mapped / laid out before we read pixels.
+	w.Show()
+	for range 5 {
+		glfw.PollEvents()
+	}
 
 	w.MakeContextCurrent()
 	check("MakeContextCurrent: no panic", true, "")

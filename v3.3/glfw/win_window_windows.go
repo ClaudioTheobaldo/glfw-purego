@@ -341,14 +341,13 @@ func (w *Window) GetAttrib(attrib Hint) int {
 	return 0
 }
 
-// GetMonitor returns the monitor the window is currently on, or nil.
-func (w *Window) GetMonitor() *Monitor {
-	hmon := getWindowMonitor(w.handle)
-	if hmon == 0 {
-		return nil
-	}
-	return monitorFromHandle(hmon)
-}
+// GetMonitor returns the monitor the window is fullscreened on, or nil if
+// the window is in windowed mode.
+//
+// Matches upstream go-gl/glfw v3.3: glfwGetWindowMonitor returns NULL for
+// windowed windows even though Win32's MonitorFromWindow always reports the
+// containing monitor.
+func (w *Window) GetMonitor() *Monitor { return w.fsMonitor }
 
 // SetMonitor switches the window to fullscreen on the given monitor, or back to
 // windowed mode when monitor is nil.

@@ -66,3 +66,14 @@ func timeSetBase(t float64) {
 	timerBaseT = t
 	timerMu.Unlock()
 }
+
+// timeBaseT returns the seconds offset stored by the last SetTime call.
+// Used by GetTime to add the offset back into the (counter-delta / frequency)
+// value returned by timeGetTicks.
+func timeBaseT() float64 {
+	initTimer()
+	timerMu.Lock()
+	t := timerBaseT
+	timerMu.Unlock()
+	return t
+}
