@@ -308,6 +308,12 @@ func (w *Window) Focus() {
 // Hide hides the window without destroying it.
 func (w *Window) Hide() { w.nsWin().Send(selOrderOut, objc.ID(0)) }
 
+// Show makes the window visible.  Inverse of Hide.
+//
+// Unlike Focus, Show only orders the window front; it does not steal
+// application activation.  Callers wanting both should call Focus.
+func (w *Window) Show() { w.nsWin().Send(selMakeKeyAndOrderFront, objc.ID(0)) }
+
 // SetIcon sets the window icon from a slice of candidate images.
 // macOS does not support per-window icons; no-op.
 func (w *Window) SetIcon(_ []Image) {}

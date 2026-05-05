@@ -161,6 +161,7 @@ type wlOutput struct {
 	proxy    uintptr
 	pending  Monitor
 	monitor  *Monitor
+	scale    int32       // wl_output.scale (integer scale factor; 1 = no HiDPI)
 	listener *[4]uintptr // kept alive — Go's non-moving GC keeps address stable
 	cbs      [4]uintptr  // purego callback values (must stay referenced)
 }
@@ -355,7 +356,11 @@ func wlOnRegistryGlobal(data, registry uintptr, name uint32, ifacePtr uintptr, v
 		out.cbs[2] = purego.NewCallback(func(d, p uintptr) {
 			wlOnOutputDone(outRef)
 		})
-		out.cbs[3] = purego.NewCallback(func(d, p uintptr, factor int32) {})
+		out.cbs[3] = purego.NewCallback(func(d, p uintptr, factor int32) {
+			if factor > 0 {
+				outRef.scale = factor
+			}
+		})
 		copy(out.listener[:], out.cbs[:])
 		wlProxyAddListener(out.proxy, uintptr(unsafe.Pointer(out.listener)), 0)
 	case "xdg_wm_base":

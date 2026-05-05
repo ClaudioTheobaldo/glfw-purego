@@ -132,6 +132,8 @@ type Window struct {
 	wlCursorY     float64
 	wlXdgSurfList *[1]uintptr // xdg_surface listener (pinned; GC must not move)
 	wlXdgTopList  *[2]uintptr // xdg_toplevel listener (pinned)
+	wlSurfList    *[4]uintptr // wl_surface listener: enter/leave/preferred_*scale/*transform
+	wlEnteredOuts []uintptr   // wl_output proxies the surface is currently on
 
 	// --- Callback holders (identical fields to go-gl/glfw) ---
 	fPosHolder             func(w *Window, xpos, ypos int)
@@ -249,6 +251,21 @@ func SetWindowUserPointer(w *Window, ptr unsafe.Pointer) { w.SetUserPointer(ptr)
 
 // GetWindowUserPointer retrieves the pointer previously set by SetWindowUserPointer.
 func GetWindowUserPointer(w *Window) unsafe.Pointer { return w.GetUserPointer() }
+
+// ── Window-scoped clipboard ───────────────────────────────────────────────────
+//
+// Upstream go-gl/glfw v3.3 exposes these as methods on *Window even though
+// the underlying clipboard is process-wide on every platform.  Source-level
+// compatibility requires that we provide them too; they delegate to the
+// package-level GetClipboardString / SetClipboardString.
+
+// SetClipboardString writes a UTF-8 string to the system clipboard.
+// Equivalent to the package-level SetClipboardString — the receiver is unused.
+func (w *Window) SetClipboardString(s string) { SetClipboardString(s) }
+
+// GetClipboardString returns the system clipboard contents as a UTF-8 string.
+// Equivalent to the package-level GetClipboardString — the receiver is unused.
+func (w *Window) GetClipboardString() string { return GetClipboardString() }
 
 // ── Handle / GoWindow ─────────────────────────────────────────────────────────
 

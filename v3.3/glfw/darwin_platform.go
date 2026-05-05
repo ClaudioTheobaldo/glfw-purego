@@ -176,7 +176,29 @@ func (m *Monitor) GetWorkarea() (x, y, width, height int) {
 	return m.x, m.y, m.widthPx, m.heightPx
 }
 func (m *Monitor) GetPhysicalSize() (widthMM, heightMM int) { return m.widthMM, m.heightMM }
-func (m *Monitor) GetContentScale() (x, y float32)          { return 1, 1 }
+func (m *Monitor) GetContentScale() (x, y float32) {
+	// Walk [NSScreen screens] and find the screen whose CGDirectDisplayID
+	// matches m.cgDisplayID; return its backingScaleFactor (1.0 on standard
+	// displays, 2.0 on Retina).
+	screens := objc.ID(objc.GetClass("NSScreen")).Send(selScreens)
+	if screens == 0 {
+		return 1, 1
+	}
+	count := objc.Send[uint64](screens, selCount)
+	for i := uint64(0); i < count; i++ {
+		screen := screens.Send(selObjectAtIndex, i)
+		desc := screen.Send(selDeviceDescription)
+		nsNum := desc.Send(selObjectForKey, nsStringFromGoString("NSScreenNumber"))
+		if uint32(objc.Send[uint64](nsNum, selUnsignedIntValue)) == m.cgDisplayID {
+			scale := float32(objc.Send[float64](screen, selBackingScaleFactor))
+			if scale <= 0 {
+				return 1, 1
+			}
+			return scale, scale
+		}
+	}
+	return 1, 1
+}
 func (m *Monitor) GetVideoMode() *VidMode                    { return m.currentMode }
 func (m *Monitor) GetVideoModes() []*VidMode                 { return m.modes }
 func (m *Monitor) GetGammaRamp() *GammaRamp                  { return nil }

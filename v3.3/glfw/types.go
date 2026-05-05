@@ -451,4 +451,6 @@ func (j Joystick) GetName() string                      { return GetJoystickName
 func (j Joystick) GetGUID() string                      { return GetJoystickGUID(j) }
 func (j Joystick) IsGamepad() bool                      { return JoystickIsGamepad(j) }
 func (j Joystick) GetGamepadName() string               { return GetGamepadName(j) }
-func (j Joystick) GetGamepadState(s *GamepadState) bool { return GetGamepadState(j, s) }
+
+// GetGamepadState — see joystick_userptr.go for the (now upstream-matching)
+// method definition.

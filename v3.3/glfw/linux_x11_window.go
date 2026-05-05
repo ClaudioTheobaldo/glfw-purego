@@ -209,8 +209,30 @@ func (w *Window) GetFramebufferSize() (width, height int) {
 	return w.GetSize()
 }
 
-// GetContentScale returns the DPI scale factors (always 1,1 on basic X11).
+// GetContentScale returns the DPI scale factors of the monitor that contains
+// the window's center.  Falls back to (1, 1) if no monitor matches.
+//
+// The DPI is computed from the monitor's pixel size and physical size in
+// millimetres (via XRandR), divided by the reference 96 DPI.
 func (w *Window) GetContentScale() (x, y float32) {
+	if x11Display == 0 || w.handle == 0 {
+		return 1, 1
+	}
+	var wa _XWindowAttributes
+	xGetWindowAttributes(x11Display, uint64(w.handle), uintptr(unsafe.Pointer(&wa)))
+	cx := int(wa.X) + int(wa.Width)/2
+	cy := int(wa.Y) + int(wa.Height)/2
+
+	monitors, _ := GetMonitors()
+	for _, m := range monitors {
+		if cx >= m.x && cx < m.x+m.widthPx && cy >= m.y && cy < m.y+m.heightPx {
+			return m.GetContentScale()
+		}
+	}
+	// Fall back to the primary monitor's scale.
+	if len(monitors) > 0 {
+		return monitors[0].GetContentScale()
+	}
 	return 1, 1
 }
 

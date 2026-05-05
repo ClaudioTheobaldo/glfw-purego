@@ -28,3 +28,25 @@ func GetJoystickUserPointer(joy Joystick) unsafe.Pointer {
 	joystickPtrMu.RUnlock()
 	return p
 }
+
+// SetUserPointer is the method form of SetJoystickUserPointer, matching the
+// upstream go-gl/glfw API.
+func (joy Joystick) SetUserPointer(ptr unsafe.Pointer) { SetJoystickUserPointer(joy, ptr) }
+
+// GetUserPointer is the method form of GetJoystickUserPointer.
+func (joy Joystick) GetUserPointer() unsafe.Pointer { return GetJoystickUserPointer(joy) }
+
+// GetGamepadState is the method form of the package-level GetGamepadState.
+// Returns nil if the joystick is not connected or has no gamepad mapping.
+//
+// This signature matches upstream go-gl/glfw v3.3 (which returns
+// *GamepadState).  The package-level (joy, *GamepadState) bool form is also
+// retained for backward compatibility with code written against earlier
+// glfw-purego versions.
+func (joy Joystick) GetGamepadState() *GamepadState {
+	var s GamepadState
+	if !GetGamepadState(joy, &s) {
+		return nil
+	}
+	return &s
+}

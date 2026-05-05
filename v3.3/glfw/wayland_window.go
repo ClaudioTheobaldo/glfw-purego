@@ -43,6 +43,33 @@ func CreateWindow(width, height int, title string, monitor, share *Monitor) (*Wi
 	}
 	windowByHandle.Store(w.handle, w)
 
+	// ── wl_surface listener (enter/leave for HiDPI + GetMonitor tracking) ────
+	// Sized to 4 to match libwayland's wl_surface_interface event count
+	// (wayland 1.22 added preferred_buffer_scale and preferred_buffer_transform);
+	// unused slots stay zero and are simply never invoked by older compositors.
+	w.wlSurfList = new([4]uintptr)
+	winRef := w
+	w.wlSurfList[0] = purego.NewCallback(func(data, surf, output uintptr) {
+		// wl_surface.enter — surface is now displayed on `output`.
+		for _, o := range winRef.wlEnteredOuts {
+			if o == output {
+				return
+			}
+		}
+		winRef.wlEnteredOuts = append(winRef.wlEnteredOuts, output)
+	})
+	w.wlSurfList[1] = purego.NewCallback(func(data, surf, output uintptr) {
+		// wl_surface.leave — surface no longer on `output`.
+		for i, o := range winRef.wlEnteredOuts {
+			if o == output {
+				winRef.wlEnteredOuts = append(winRef.wlEnteredOuts[:i], winRef.wlEnteredOuts[i+1:]...)
+				return
+			}
+		}
+	})
+	// preferred_buffer_scale / preferred_buffer_transform — unused; zero.
+	wlProxyAddListener(w.handle, uintptr(unsafe.Pointer(w.wlSurfList)), 0)
+
 	// ── xdg_surface ───────────────────────────────────────────────────────────
 	// xdg_wm_base.get_xdg_surface opcode=2, signature="no" (new_id + wl_surface)
 	// For "no": variadic args are (NULL for new_id, then the object).
@@ -293,8 +320,23 @@ func (w *Window) GetFramebufferSize() (width, height int) {
 	return w.wlWidth, w.wlHeight
 }
 
-// GetContentScale returns the DPI scale (always 1,1 — HiDPI is not yet wired up).
-func (w *Window) GetContentScale() (x, y float32) { return 1, 1 }
+// GetContentScale returns the integer HiDPI scale of the highest-scale output
+// the window's surface is currently displayed on.  Returns (1, 1) before the
+// first wl_surface.enter event has fired.
+//
+// Wayland reports integer scale factors via wl_output.scale; fractional scaling
+// is handled by the compositor and is opaque to clients.
+func (w *Window) GetContentScale() (x, y float32) {
+	maxScale := int32(1)
+	for _, outProxy := range w.wlEnteredOuts {
+		for _, out := range wl.outputs {
+			if out.proxy == outProxy && out.scale > maxScale {
+				maxScale = out.scale
+			}
+		}
+	}
+	return float32(maxScale), float32(maxScale)
+}
 
 // GetPos always returns (0, 0) on Wayland.
 //
