@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux && !wayland
 
 // test_linux exercises the new Group 1-5 APIs on Linux:
 //   - GetMonitors / GetPrimaryMonitor  (XRandR struct-layout verification)
