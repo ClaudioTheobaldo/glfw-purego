@@ -46,7 +46,7 @@ func getX11State(handle uintptr) *x11WindowState {
 // ----------------------------------------------------------------------------
 
 // CreateWindow creates an X11 window with an associated EGL context.
-func CreateWindow(width, height int, title string, monitor, share *Monitor) (*Window, error) {
+func CreateWindow(width, height int, title string, monitor *Monitor, share *Window) (*Window, error) {
 	hints.mu.Lock()
 	h := make(map[Hint]int, len(hints.m))
 	for k, v := range hints.m {

@@ -353,7 +353,7 @@ func Terminate()        { base.Terminate() }
 func GetTime() float64  { return base.GetTime() }
 func SetTime(t float64) { base.SetTime(t) }
 
-func CreateWindow(width, height int, title string, monitor, share *Monitor) (*Window, error) {
+func CreateWindow(width, height int, title string, monitor *Monitor, share *Window) (*Window, error) {
 	return base.CreateWindow(width, height, title, monitor, share)
 }
 
@@ -367,8 +367,8 @@ func DefaultWindowHints()              { base.DefaultWindowHints() }
 
 func GetMonitors() []*Monitor { return base.GetMonitors() }
 func GetPrimaryMonitor() *Monitor       { return base.GetPrimaryMonitor() }
-func SetMonitorCallback(cb func(monitor *Monitor, event PeripheralEvent)) {
-	base.SetMonitorCallback(cb)
+func SetMonitorCallback(cb func(monitor *Monitor, event PeripheralEvent)) func(monitor *Monitor, event PeripheralEvent) {
+	return base.SetMonitorCallback(cb)
 }
 
 func GetClipboardString() string  { return base.GetClipboardString() }
@@ -380,8 +380,8 @@ func GetJoystickButtons(joy Joystick) []Action        { return base.GetJoystickB
 func GetJoystickHats(joy Joystick) []JoystickHatState { return base.GetJoystickHats(joy) }
 func GetJoystickName(joy Joystick) string             { return base.GetJoystickName(joy) }
 func GetJoystickGUID(joy Joystick) string             { return base.GetJoystickGUID(joy) }
-func SetJoystickCallback(cb func(joy Joystick, event PeripheralEvent)) {
-	base.SetJoystickCallback(cb)
+func SetJoystickCallback(cb func(joy Joystick, event PeripheralEvent)) func(joy Joystick, event PeripheralEvent) {
+	return base.SetJoystickCallback(cb)
 }
 
 func CreateCursor(img goimage.Image, xhot, yhot int) *Cursor {

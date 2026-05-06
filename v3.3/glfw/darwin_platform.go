@@ -239,11 +239,13 @@ func diffAndFireMonitorCallbacks(old, cur []*Monitor, cb func(*Monitor, Peripher
 
 // SetMonitorCallback registers a callback for monitor connect/disconnect events.
 // The first non-nil registration also arms the CGDisplay reconfiguration hook.
-func SetMonitorCallback(cb func(monitor *Monitor, event PeripheralEvent)) {
+func SetMonitorCallback(cb func(monitor *Monitor, event PeripheralEvent)) func(monitor *Monitor, event PeripheralEvent) {
+	prev := darwinMonitorCb
 	darwinMonitorCb = cb
 	if cb != nil && darwinCGReconfigCBPtr == 0 {
 		registerMonitorReconfigCB()
 	}
+	return prev
 }
 
 // ── NSString helpers ──────────────────────────────────────────────────────────
@@ -634,8 +636,10 @@ func GetKeyScancode(key Key) int {
 func GetKeyName(_ Key, _ int) string { return "" }
 
 // SetJoystickCallback registers a callback for joystick connect/disconnect events.
-func SetJoystickCallback(cb func(joy Joystick, event PeripheralEvent)) {
+func SetJoystickCallback(cb func(joy Joystick, event PeripheralEvent)) func(joy Joystick, event PeripheralEvent) {
+	prev := darwinJoystickCb
 	darwinJoystickCb = cb
+	return prev
 }
 
 // ── Input features ────────────────────────────────────────────────────────────

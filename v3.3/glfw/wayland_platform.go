@@ -642,11 +642,13 @@ func GetPrimaryMonitor() *Monitor {
 }
 
 // SetMonitorCallback registers a connect/disconnect callback for monitors.
-func SetMonitorCallback(cb func(monitor *Monitor, event PeripheralEvent)) {
+func SetMonitorCallback(cb func(monitor *Monitor, event PeripheralEvent)) func(monitor *Monitor, event PeripheralEvent) {
+	prev := wl.monitorCb
 	wl.monitorCb = cb
 	if cb != nil {
 		wl.cachedMonitors = GetMonitors()
 	}
+	return prev
 }
 
 // ── Feature query stubs ───────────────────────────────────────────────────────

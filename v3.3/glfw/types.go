@@ -140,6 +140,11 @@ const (
 	AlphaBits              Hint = 0x00021004
 	DepthBits              Hint = 0x00021005
 	StencilBits            Hint = 0x00021006
+	AccumRedBits           Hint = 0x00021007
+	AccumGreenBits         Hint = 0x00021008
+	AccumBlueBits          Hint = 0x00021009
+	AccumAlphaBits         Hint = 0x0002100A
+	AuxBuffers             Hint = 0x0002100B
 	Stereo                 Hint = 0x0002100C
 	Samples                Hint = 0x0002100D
 	SRGBCapable            Hint = 0x0002100E
@@ -166,6 +171,7 @@ const (
 	CocoaGraphicsSwitching Hint = 0x00023003
 
 	// Init hints (passed to InitHint).  Ignored when unsupported.
+	JoystickHatButtons  Hint = 0x00050001
 	CocoaChdirResources Hint = 0x00051001
 	CocoaMenubar        Hint = 0x00051002
 

@@ -16,7 +16,7 @@ import (
 // monitor and share are accepted for API compatibility but ignored in this
 // initial Windows implementation (fullscreen and context sharing are not yet
 // implemented).
-func CreateWindow(width, height int, title string, monitor, share *Monitor) (*Window, error) {
+func CreateWindow(width, height int, title string, monitor *Monitor, share *Window) (*Window, error) {
 	// Snapshot the current hints so concurrent hint changes don't race.
 	hints.mu.Lock()
 	h := make(map[Hint]int, len(hints.m))

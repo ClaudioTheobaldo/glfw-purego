@@ -167,11 +167,13 @@ var (
 
 // SetMonitorCallback registers a callback for monitor connect/disconnect events.
 // The callback is fired from WM_DISPLAYCHANGE in wndProc.
-func SetMonitorCallback(cb func(monitor *Monitor, event PeripheralEvent)) {
+func SetMonitorCallback(cb func(monitor *Monitor, event PeripheralEvent)) func(monitor *Monitor, event PeripheralEvent) {
+	prev := winMonitorCb
 	winMonitorCb = cb
 	if cb != nil {
 		winCachedMonitors = GetMonitors()
 	}
+	return prev
 }
 
 // diffAndFireMonitorCallbacks compares two monitor lists by name and fires

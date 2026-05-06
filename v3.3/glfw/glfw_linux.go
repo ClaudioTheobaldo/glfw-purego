@@ -22,7 +22,8 @@ const _RROutputChangeNotifyMask = int32(1)
 
 // SetMonitorCallback registers a callback for monitor connect/disconnect events.
 // Requires XRandR; silently ignored if libXrandr is not available.
-func SetMonitorCallback(cb func(monitor *Monitor, event PeripheralEvent)) {
+func SetMonitorCallback(cb func(monitor *Monitor, event PeripheralEvent)) func(monitor *Monitor, event PeripheralEvent) {
+	prev := linuxMonitorCb
 	linuxMonitorCb = cb
 	if cb != nil && x11Display != 0 {
 		if loadXrandr() == nil {
@@ -30,6 +31,7 @@ func SetMonitorCallback(cb func(monitor *Monitor, event PeripheralEvent)) {
 		}
 		linuxCachedMonitors = GetMonitors()
 	}
+	return prev
 }
 
 // ----------------------------------------------------------------------------

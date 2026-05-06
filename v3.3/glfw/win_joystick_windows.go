@@ -276,7 +276,8 @@ var (
 // SetJoystickCallback sets a callback for joystick connect/disconnect events.
 // The callback fires from inside PollEvents whenever an XInput slot's
 // connection state changes from the previous poll.
-func SetJoystickCallback(cb func(joy Joystick, event PeripheralEvent)) {
+func SetJoystickCallback(cb func(joy Joystick, event PeripheralEvent)) func(joy Joystick, event PeripheralEvent) {
+	prev := joystickCallback
 	joystickCallback = cb
 	// Seed the connected state so the very first PollEvents doesn't spuriously
 	// report all currently-connected pads as freshly Connected.
@@ -284,6 +285,7 @@ func SetJoystickCallback(cb func(joy Joystick, event PeripheralEvent)) {
 		_, present := xinputGetState(i)
 		joystickConnected[i] = present
 	}
+	return prev
 }
 
 // pollJoystickConnections re-scans XInput slots and fires the callback on

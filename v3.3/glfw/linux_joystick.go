@@ -416,9 +416,11 @@ func UpdateGamepadMappings(_ string) bool { return true }
 
 // SetJoystickCallback registers a callback for joystick connect/disconnect events.
 // Hot-plug events are delivered during PollEvents once joysticks are initialised.
-func SetJoystickCallback(cb func(joy Joystick, event PeripheralEvent)) {
+func SetJoystickCallback(cb func(joy Joystick, event PeripheralEvent)) func(joy Joystick, event PeripheralEvent) {
 	initJoysticks()
 	jsMu.Lock()
+	prev := jsCb
 	jsCb = cb
 	jsMu.Unlock()
+	return prev
 }

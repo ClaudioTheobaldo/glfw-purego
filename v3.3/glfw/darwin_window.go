@@ -74,7 +74,7 @@ func glfwToCocoa(nswin objc.ID, glfwY int, contentH float64) float64 {
 // ── CreateWindow ──────────────────────────────────────────────────────────────
 
 // CreateWindow creates a window with an associated OpenGL context.
-func CreateWindow(width, height int, title string, monitor, share *Monitor) (*Window, error) {
+func CreateWindow(width, height int, title string, monitor *Monitor, share *Window) (*Window, error) {
 	if !darwinInitialized {
 		return nil, &Error{Code: NotInitialized, Desc: "GLFW has not been initialised"}
 	}
