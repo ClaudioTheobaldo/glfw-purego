@@ -67,20 +67,26 @@ var darwinStdCursorSel = map[StandardCursorShape]objc.SEL{
 var selRetain = objc.RegisterName("retain")
 
 // CreateStandardCursor returns a Cursor for a built-in system shape.
-func CreateStandardCursor(shape StandardCursorShape) (*Cursor, error) {
+// Mirrors upstream go-gl/glfw v3.3: no error return; nil on failure.
+func CreateStandardCursor(shape StandardCursorShape) *Cursor {
 	sel, ok := darwinStdCursorSel[shape]
 	if !ok {
 		sel = selArrowCursorSel // fall back to arrow
 	}
 	nsCursor := objc.ID(objc.GetClass("NSCursor")).Send(sel)
+	if nsCursor == 0 {
+		return nil
+	}
 	// Class-method cursors are autoreleased singletons; retain so they survive
 	// beyond the current autorelease pool drain.
 	nsCursor.Send(selRetain)
-	return &Cursor{handle: uintptr(nsCursor), system: true}, nil
+	return &Cursor{handle: uintptr(nsCursor), system: true}
 }
 
-// CreateCursor creates a cursor from an RGBA image with the given hot-spot.
-func CreateCursor(image *Image, xhot, yhot int) (*Cursor, error) {
+// createCursorRGBA is the platform-specific custom-cursor builder; the public
+// CreateCursor wrapper in window.go converts image.Image to *Image and calls
+// this function.
+func createCursorRGBA(image *Image, xhot, yhot int) *Cursor {
 	w, h := image.Width, image.Height
 
 	// 1. Allocate an NSBitmapImageRep with NULL planes (AppKit allocates the buffer).
@@ -99,7 +105,7 @@ func CreateCursor(image *Image, xhot, yhot int) (*Cursor, error) {
 		int64(32),    // bitsPerPixel
 	)
 	if rep == 0 {
-		return &Cursor{}, nil
+		return &Cursor{}
 	}
 	defer rep.Send(selRelease)
 
@@ -114,7 +120,7 @@ func CreateCursor(image *Image, xhot, yhot int) (*Cursor, error) {
 	nsImg := objc.ID(objc.GetClass("NSImage")).Send(selAlloc).Send(
 		selInitWithSize, NSSize{float64(w), float64(h)})
 	if nsImg == 0 {
-		return &Cursor{}, nil
+		return &Cursor{}
 	}
 	nsImg.Send(selAddRepresentation, rep)
 
@@ -126,9 +132,9 @@ func CreateCursor(image *Image, xhot, yhot int) (*Cursor, error) {
 	)
 	nsImg.Send(selRelease)
 	if nsCursor == 0 {
-		return &Cursor{}, nil
+		return &Cursor{}
 	}
-	return &Cursor{handle: uintptr(nsCursor), system: false}, nil
+	return &Cursor{handle: uintptr(nsCursor), system: false}
 }
 
 // DestroyCursor releases the NSCursor.

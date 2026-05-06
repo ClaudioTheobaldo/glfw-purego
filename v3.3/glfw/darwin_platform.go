@@ -486,7 +486,7 @@ func Init() error {
 	})
 
 	// Snapshot the connected monitors for hotplug diffing.
-	darwinCachedMonitors, _ = GetMonitors()
+	darwinCachedMonitors = GetMonitors()
 
 	darwinInitialized = true
 	return nil

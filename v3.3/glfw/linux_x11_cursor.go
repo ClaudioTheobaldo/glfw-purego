@@ -162,30 +162,32 @@ func standardCursorXShape(shape StandardCursorShape) uint32 {
 // ----------------------------------------------------------------------------
 
 // CreateStandardCursor returns a cursor with the given built-in shape.
-func CreateStandardCursor(shape StandardCursorShape) (*Cursor, error) {
+// Mirrors upstream go-gl/glfw v3.3: no error return; nil on failure.
+func CreateStandardCursor(shape StandardCursorShape) *Cursor {
 	if err := initX11Display(); err != nil {
-		return nil, err
+		return nil
 	}
 	handle := xCreateFontCursor(x11Display, standardCursorXShape(shape))
 	if handle == 0 {
-		return nil, &Error{Code: PlatformError, Desc: "XCreateFontCursor failed"}
+		return nil
 	}
-	return &Cursor{handle: uintptr(handle), system: true}, nil
+	return &Cursor{handle: uintptr(handle), system: true}
 }
 
-// CreateCursor creates a cursor from a custom RGBA image.
-func CreateCursor(image *Image, xhot, yhot int) (*Cursor, error) {
+// createCursorRGBA is the platform-specific custom-cursor builder; the public
+// CreateCursor wrapper in window.go handles the image.Image conversion.
+func createCursorRGBA(image *Image, xhot, yhot int) *Cursor {
 	if err := initX11Display(); err != nil {
-		return nil, err
+		return nil
 	}
 	if err := loadXcursor(); err != nil {
-		return nil, &Error{Code: APIUnavailable, Desc: "libXcursor not available: " + err.Error()}
+		return nil
 	}
 
 	// XcursorImageCreate allocates the image and its pixel buffer in C memory.
 	imgPtr := xcursorImageCreate(int32(image.Width), int32(image.Height))
 	if imgPtr == 0 {
-		return nil, &Error{Code: PlatformError, Desc: "XcursorImageCreate failed"}
+		return nil
 	}
 	defer xcursorImageDestroy(imgPtr)
 
@@ -207,9 +209,9 @@ func CreateCursor(image *Image, xhot, yhot int) (*Cursor, error) {
 
 	handle := xcursorImageLoadCursor(x11Display, imgPtr)
 	if handle == 0 {
-		return nil, &Error{Code: PlatformError, Desc: "XcursorImageLoadCursor failed"}
+		return nil
 	}
-	return &Cursor{handle: uintptr(handle), system: false}, nil
+	return &Cursor{handle: uintptr(handle), system: false}
 }
 
 // DestroyCursor frees a cursor object.

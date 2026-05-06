@@ -223,7 +223,7 @@ func (w *Window) GetContentScale() (x, y float32) {
 	cx := int(wa.X) + int(wa.Width)/2
 	cy := int(wa.Y) + int(wa.Height)/2
 
-	monitors, _ := GetMonitors()
+	monitors := GetMonitors()
 	for _, m := range monitors {
 		if cx >= m.x && cx < m.x+m.widthPx && cy >= m.y && cy < m.y+m.heightPx {
 			return m.GetContentScale()
@@ -398,7 +398,7 @@ func (w *Window) GetMonitor() *Monitor {
 	cx := int(wa.X) + int(wa.Width)/2
 	cy := int(wa.Y) + int(wa.Height)/2
 
-	monitors, _ := GetMonitors()
+	monitors := GetMonitors()
 	for _, m := range monitors {
 		if cx >= m.x && cx < m.x+m.widthPx && cy >= m.y && cy < m.y+m.heightPx {
 			return m

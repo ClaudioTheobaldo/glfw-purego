@@ -199,7 +199,7 @@ func handleX11Event(ev *_XEvent) {
 	// xrandrEventBase+1 = RROutputChangeNotify (from XRandR extension base).
 	if xrandrEventBase != 0 && int32(ev.eventType()) == xrandrEventBase+1 {
 		if linuxMonitorCb != nil {
-			newMonitors, _ := GetMonitors()
+			newMonitors := GetMonitors()
 			diffAndFireMonitorCallbacks(linuxCachedMonitors, newMonitors, linuxMonitorCb)
 			linuxCachedMonitors = newMonitors
 		}

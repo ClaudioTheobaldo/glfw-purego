@@ -28,7 +28,7 @@ func SetMonitorCallback(cb func(monitor *Monitor, event PeripheralEvent)) {
 		if loadXrandr() == nil {
 			xrrSelectInput(x11Display, x11Root, _RROutputChangeNotifyMask)
 		}
-		linuxCachedMonitors, _ = GetMonitors()
+		linuxCachedMonitors = GetMonitors()
 	}
 }
 
@@ -168,7 +168,7 @@ func (w *Window) SetAttrib(attrib Hint, value int) {
 
 // SetIcon sets the window icon from a slice of candidate images.
 // Pass nil or an empty slice to remove the icon.
-func (w *Window) SetIcon(images []Image) {
+func (w *Window) setIconImages(images []Image) {
 	if x11Display == 0 || w.handle == 0 {
 		return
 	}

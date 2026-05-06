@@ -98,12 +98,23 @@ const (
 	MouseButton8      MouseButton = 7
 	MouseButtonLast               = MouseButton8
 
+	// Numeric aliases matching upstream go-gl/glfw v3.3.  MouseButton1..3
+	// alias the named LEFT/RIGHT/MIDDLE buttons; 4..8 are already numeric.
+	MouseButton1 = MouseButtonLeft
+	MouseButton2 = MouseButtonRight
+	MouseButton3 = MouseButtonMiddle
+
 	// Input modes — the selector passed to SetInputMode / GetInputMode.
 	CursorMode         InputMode = 0x00033001
 	StickyKeys         InputMode = 0x00033002
 	StickyMouseButtons InputMode = 0x00033003
 	LockKeyMods        InputMode = 0x00033004
 	RawMouseMotion     InputMode = 0x00033005
+
+	// Upstream go-gl/glfw uses a "Mode" suffix on these two constants but not
+	// the others.  Provide aliases so source written against go-gl compiles.
+	StickyKeysMode         = StickyKeys
+	StickyMouseButtonsMode = StickyMouseButtons
 
 	// Cursor modes (values passed as the second argument to SetInputMode(CursorMode, ...))
 	CursorNormal   = 0x00034001
@@ -146,6 +157,22 @@ const (
 	ContextNoError         Hint = 0x0002200A
 	ContextCreationAPIHint Hint = 0x0002200B
 	ScaleToMonitor         Hint = 0x0002200C
+
+	// macOS-specific window-creation hints (mirror upstream go-gl/glfw).
+	// On non-macOS builds these are accepted by WindowHint but produce no
+	// observable effect.
+	CocoaRetinaFramebuffer Hint = 0x00023001
+	CocoaFrameNAME         Hint = 0x00023002
+	CocoaGraphicsSwitching Hint = 0x00023003
+
+	// Init hints (passed to InitHint).  Ignored when unsupported.
+	CocoaChdirResources Hint = 0x00051001
+	CocoaMenubar        Hint = 0x00051002
+
+	// Boolean values matching upstream go-gl/glfw's True / False ints.
+	True     int = 1
+	False    int = 0
+	DontCare int = -1
 
 	// Client APIs
 	OpenGLAPI   ClientAPI = 0x00030001
@@ -359,6 +386,11 @@ const (
 
 // StandardCursorShape identifies a built-in system cursor shape.
 type StandardCursorShape int
+
+// StandardCursor is the upstream go-gl/glfw type-alias for StandardCursorShape.
+// Source written against go-gl/glfw v3.3 uses this name; the underlying
+// representation is identical.
+type StandardCursor = StandardCursorShape
 
 const (
 	ArrowCursor      StandardCursorShape = 0x00036001

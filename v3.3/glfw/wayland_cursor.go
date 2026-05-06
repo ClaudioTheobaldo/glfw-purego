@@ -136,14 +136,16 @@ var wlCursorNames = map[StandardCursorShape][]string{
 // CreateStandardCursor loads a system cursor from the XCursor theme via
 // libwayland-cursor.  Falls back to a stub cursor if the library or theme is
 // unavailable (the build still works; the cursor just won't change shape).
-func CreateStandardCursor(shape StandardCursorShape) (*Cursor, error) {
+//
+// Mirrors upstream go-gl/glfw v3.3: no error return; nil on failure.
+func CreateStandardCursor(shape StandardCursorShape) *Cursor {
 	names, ok := wlCursorNames[shape]
 	if !ok {
-		return &Cursor{system: true}, nil
+		return &Cursor{system: true}
 	}
 	theme := wlEnsureCursorTheme()
 	if theme == 0 {
-		return &Cursor{system: true}, nil
+		return &Cursor{system: true}
 	}
 	for _, name := range names {
 		nameC := append([]byte(name), 0)
@@ -161,21 +163,22 @@ func CreateStandardCursor(shape StandardCursorShape) (*Cursor, error) {
 			system: true,
 			wlHotX: int32(hotX),
 			wlHotY: int32(hotY),
-		}, nil
+		}
 	}
-	return &Cursor{system: true}, nil
+	return &Cursor{system: true}
 }
 
 // ── CreateCursor (custom RGBA image) ─────────────────────────────────────────
 
-// CreateCursor creates a cursor from an arbitrary RGBA image, backed by a
-// shared-memory wl_buffer.  The buffer stays mapped for the cursor's lifetime
-// and is released by DestroyCursor.  Returns an empty (invisible) cursor if
-// wl_shm is unavailable or the underlying memfd/mmap calls fail.
-func CreateCursor(image *Image, xhot, yhot int) (*Cursor, error) {
+// createCursorRGBA is the platform-specific custom-cursor builder; the public
+// CreateCursor wrapper in window.go handles the image.Image conversion.
+//
+// Returns a stub (invisible) cursor if wl_shm is unavailable or the underlying
+// memfd/mmap calls fail.
+func createCursorRGBA(image *Image, xhot, yhot int) *Cursor {
 	if image == nil || image.Width <= 0 || image.Height <= 0 ||
 		wl.shm == 0 || wlShmPoolIfaceAddr == 0 || wlBufferIfaceAddr == 0 {
-		return &Cursor{wlHotX: int32(xhot), wlHotY: int32(yhot)}, nil
+		return &Cursor{wlHotX: int32(xhot), wlHotY: int32(yhot)}
 	}
 	w, h := image.Width, image.Height
 	stride := w * 4
@@ -184,16 +187,16 @@ func CreateCursor(image *Image, xhot, yhot int) (*Cursor, error) {
 	// 1. Anonymous shared-memory file via memfd_create (Linux 3.17+).
 	fd, err := unix.MemfdCreate("glfw-cursor", unix.MFD_CLOEXEC)
 	if err != nil {
-		return &Cursor{wlHotX: int32(xhot), wlHotY: int32(yhot)}, nil
+		return &Cursor{wlHotX: int32(xhot), wlHotY: int32(yhot)}
 	}
 	if err := unix.Ftruncate(fd, int64(size)); err != nil {
 		unix.Close(fd)
-		return &Cursor{wlHotX: int32(xhot), wlHotY: int32(yhot)}, nil
+		return &Cursor{wlHotX: int32(xhot), wlHotY: int32(yhot)}
 	}
 	mmap, err := unix.Mmap(fd, 0, size, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
 	if err != nil {
 		unix.Close(fd)
-		return &Cursor{wlHotX: int32(xhot), wlHotY: int32(yhot)}, nil
+		return &Cursor{wlHotX: int32(xhot), wlHotY: int32(yhot)}
 	}
 
 	// 2. Convert input RGBA → ARGB8888 little-endian (B,G,R,A bytes) with
@@ -221,7 +224,7 @@ func CreateCursor(image *Image, xhot, yhot int) (*Cursor, error) {
 	if pool == 0 {
 		_ = unix.Munmap(mmap)
 		unix.Close(fd)
-		return &Cursor{wlHotX: int32(xhot), wlHotY: int32(yhot)}, nil
+		return &Cursor{wlHotX: int32(xhot), wlHotY: int32(yhot)}
 	}
 
 	// 4. wl_shm_pool.create_buffer opcode=0,
@@ -237,7 +240,7 @@ func CreateCursor(image *Image, xhot, yhot int) (*Cursor, error) {
 
 	if buf == 0 {
 		_ = unix.Munmap(mmap)
-		return &Cursor{wlHotX: int32(xhot), wlHotY: int32(yhot)}, nil
+		return &Cursor{wlHotX: int32(xhot), wlHotY: int32(yhot)}
 	}
 
 	return &Cursor{
@@ -247,7 +250,7 @@ func CreateCursor(image *Image, xhot, yhot int) (*Cursor, error) {
 		wlHotY:    int32(yhot),
 		wlMmap:    mmap,
 		wlSurface: 0, // shared cursor surface is reused via wlEnsureCursorSurface
-	}, nil
+	}
 }
 
 // ── DestroyCursor ─────────────────────────────────────────────────────────────

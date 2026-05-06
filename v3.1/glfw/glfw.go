@@ -358,7 +358,7 @@ func PostEmptyEvent()               { base.PostEmptyEvent() }
 func WindowHint(target Hint, hint int) { base.WindowHint(target, hint) }
 func DefaultWindowHints()              { base.DefaultWindowHints() }
 
-func GetMonitors() ([]*Monitor, error)  { return base.GetMonitors() }
+func GetMonitors() []*Monitor { return base.GetMonitors() }
 func GetPrimaryMonitor() *Monitor       { return base.GetPrimaryMonitor() }
 func SetMonitorCallback(cb func(monitor *Monitor, event PeripheralEvent)) {
 	base.SetMonitorCallback(cb)
@@ -374,10 +374,10 @@ func GetJoystickHats(joy Joystick) []JoystickHatState { return base.GetJoystickH
 func GetJoystickName(joy Joystick) string             { return base.GetJoystickName(joy) }
 func GetJoystickGUID(joy Joystick) string             { return base.GetJoystickGUID(joy) }
 
-func CreateCursor(image *Image, xhot, yhot int) (*Cursor, error) {
-	return base.CreateCursor(image, xhot, yhot)
+func CreateCursor(img goimage.Image, xhot, yhot int) *Cursor {
+	return base.CreateCursor(img, xhot, yhot)
 }
-func CreateStandardCursor(shape StandardCursorShape) (*Cursor, error) {
+func CreateStandardCursor(shape StandardCursorShape) *Cursor {
 	return base.CreateStandardCursor(shape)
 }
 func DestroyCursor(cursor *Cursor) { base.DestroyCursor(cursor) }

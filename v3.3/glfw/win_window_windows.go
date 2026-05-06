@@ -489,7 +489,7 @@ func (w *Window) SetAttrib(attrib Hint, value int) {
 // SetIcon sets the window icon from a list of images of different sizes.
 // The image with the best size for ICON_BIG (~32×32) and ICON_SMALL (~16×16)
 // is chosen automatically. Pass nil to revert to the default application icon.
-func (w *Window) SetIcon(images []Image) {
+func (w *Window) setIconImages(images []Image) {
 	if len(images) == 0 {
 		icon, _ := loadIconW(0, _IDI_APPLICATION)
 		sendMessageW(w.handle, _WM_SETICON, _ICON_BIG, icon)
@@ -1023,7 +1023,7 @@ func wndProc(hwnd uintptr, msg uint32, wParam, lParam uintptr) uintptr {
 	case _WM_DISPLAYCHANGE:
 		// A monitor was connected or disconnected; fire the monitor callback.
 		if winMonitorCb != nil {
-			newMonitors, _ := GetMonitors()
+			newMonitors := GetMonitors()
 			diffAndFireMonitorCallbacks(winCachedMonitors, newMonitors, winMonitorCb)
 			winCachedMonitors = newMonitors
 		}

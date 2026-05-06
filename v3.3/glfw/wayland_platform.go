@@ -621,14 +621,14 @@ func PostEmptyEvent() {
 // ── Monitor API ───────────────────────────────────────────────────────────────
 
 // GetMonitors returns all monitors that have received a wl_output.done event.
-func GetMonitors() ([]*Monitor, error) {
+func GetMonitors() []*Monitor {
 	var result []*Monitor
 	for _, out := range wl.outputs {
 		if out.monitor != nil {
 			result = append(result, out.monitor)
 		}
 	}
-	return result, nil
+	return result
 }
 
 // GetPrimaryMonitor returns the first known monitor.
@@ -645,7 +645,7 @@ func GetPrimaryMonitor() *Monitor {
 func SetMonitorCallback(cb func(monitor *Monitor, event PeripheralEvent)) {
 	wl.monitorCb = cb
 	if cb != nil {
-		wl.cachedMonitors, _ = GetMonitors()
+		wl.cachedMonitors = GetMonitors()
 	}
 }
 
@@ -663,7 +663,7 @@ func (m *Monitor) GetGammaRamp() *GammaRamp        { return nil }
 
 // ── Window stubs for features unavailable on Wayland ─────────────────────────
 
-func (w *Window) SetIcon(images []Image)                              {}
+func (w *Window) setIconImages(images []Image) {}
 func (w *Window) GetFrameSize() (left, top, right, bottom int)       { return 0, 0, 0, 0 }
 func GetWindowFrameSize(w *Window) (left, top, right, bottom int)    { return 0, 0, 0, 0 }
 func (w *Window) GetOpacity() float32                                 { return 1.0 }

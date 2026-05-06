@@ -15,13 +15,14 @@ type Monitor struct {
 	primary bool
 }
 
-// GetMonitors returns all currently connected monitors.
-func GetMonitors() ([]*Monitor, error) {
+// GetMonitors returns all currently connected monitors, or nil if none are
+// found.
+func GetMonitors() []*Monitor {
 	monitors := collectMonitors()
 	if len(monitors) == 0 {
-		return nil, &Error{Code: PlatformError, Desc: "no monitors found"}
+		return nil
 	}
-	return monitors, nil
+	return monitors
 }
 
 // GetPrimaryMonitor returns the primary monitor.
@@ -169,7 +170,7 @@ var (
 func SetMonitorCallback(cb func(monitor *Monitor, event PeripheralEvent)) {
 	winMonitorCb = cb
 	if cb != nil {
-		winCachedMonitors, _ = GetMonitors()
+		winCachedMonitors = GetMonitors()
 	}
 }
 

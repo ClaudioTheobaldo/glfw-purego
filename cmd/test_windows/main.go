@@ -100,8 +100,7 @@ func testEvents() {
 
 func testMonitors() {
 	section("Monitors")
-	monitors, err := glfw.GetMonitors()
-	check("GetMonitors: no error", err == nil, fmt.Sprintf("err=%v", err))
+	monitors := glfw.GetMonitors()
 	check("GetMonitors: non-empty", len(monitors) > 0, fmt.Sprintf("got %d", len(monitors)))
 
 	pm := glfw.GetPrimaryMonitor()
@@ -491,17 +490,17 @@ func testWindow() {
 		glfw.ArrowCursor, glfw.IBeamCursor, glfw.CrosshairCursor,
 		glfw.HandCursor, glfw.HResizeCursor, glfw.VResizeCursor,
 	} {
-		c, cerr := glfw.CreateStandardCursor(shape)
-		check(fmt.Sprintf("CreateStandardCursor(%v): no error", shape),
-			cerr == nil, fmt.Sprintf("%v", cerr))
+		c := glfw.CreateStandardCursor(shape)
+		check(fmt.Sprintf("CreateStandardCursor(%v): non-nil", shape),
+			c != nil, "")
 		if c != nil {
 			w.SetCursor(c)
 			c.Destroy()
 		}
 	}
 	pix := []byte{255, 255, 255, 255}
-	custom, cerr := glfw.CreateCursor(&glfw.Image{Width: 1, Height: 1, Pixels: pix}, 0, 0)
-	check("CreateCursor: no error", cerr == nil, fmt.Sprintf("%v", cerr))
+	custom := glfw.CreateCursorFromImage(&glfw.Image{Width: 1, Height: 1, Pixels: pix}, 0, 0)
+	check("CreateCursor: non-nil", custom != nil, "")
 	if custom != nil {
 		w.SetCursor(custom)
 		check("SetCursor(custom): no panic", true, "")

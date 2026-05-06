@@ -313,7 +313,7 @@ func CreateWindow(width, height int, title string, monitor, share *Monitor) (*Wi
 func PollEvents()  { base.PollEvents() }
 func WaitEvents()  { base.WaitEvents() }
 
-func GetMonitors() ([]*Monitor, error)  { return base.GetMonitors() }
+func GetMonitors() []*Monitor { return base.GetMonitors() }
 func GetPrimaryMonitor() *Monitor       { return base.GetPrimaryMonitor() }
 func SetMonitorCallback(cb func(monitor *Monitor, event PeripheralEvent)) {
 	base.SetMonitorCallback(cb)

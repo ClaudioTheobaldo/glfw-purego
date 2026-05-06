@@ -295,11 +295,94 @@ func GoWindow(ptr unsafe.Pointer) *Window {
 	return v.(*Window)
 }
 
-// ── SetIconFromImages ─────────────────────────────────────────────────────────
+// ── CreateCursor (image.Image overload) ───────────────────────────────────────
 
-// SetIconFromImages converts standard-library image.Image values to the
-// native []Image format and calls w.SetIcon. It is a convenience wrapper
-// for callers that work with stdlib images.
+// CreateCursor creates a cursor from a standard-library image.Image with the
+// given hotspot, mirroring upstream go-gl/glfw v3.3.  The image is converted
+// to RGBA bytes and dispatched to the platform-specific custom-cursor builder.
+//
+// Returns nil if img is nil, has zero dimensions, or the underlying platform
+// cursor allocation fails.
+func CreateCursor(img goimage.Image, xhot, yhot int) *Cursor {
+	if img == nil {
+		return nil
+	}
+	bounds := img.Bounds()
+	w := bounds.Dx()
+	h := bounds.Dy()
+	if w <= 0 || h <= 0 {
+		return nil
+	}
+	pixels := make([]byte, w*h*4)
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			r, g, b, a := img.At(bounds.Min.X+x, bounds.Min.Y+y).RGBA()
+			i := (y*w + x) * 4
+			pixels[i+0] = byte(r >> 8)
+			pixels[i+1] = byte(g >> 8)
+			pixels[i+2] = byte(b >> 8)
+			pixels[i+3] = byte(a >> 8)
+		}
+	}
+	return createCursorRGBA(&Image{Width: w, Height: h, Pixels: pixels}, xhot, yhot)
+}
+
+// CreateCursorFromImage is the legacy overload that takes our internal *Image
+// (already a flat RGBA byte buffer).  Retained for callers that have one in
+// hand and want to skip the goimage.Image conversion.
+func CreateCursorFromImage(image *Image, xhot, yhot int) *Cursor {
+	return createCursorRGBA(image, xhot, yhot)
+}
+
+// ── SetIcon ───────────────────────────────────────────────────────────────────
+
+// SetIcon sets the window's icon to the given list of candidate images.
+// The window manager picks the best size from the supplied list.
+//
+// Mirrors upstream go-gl/glfw v3.3, which takes []image.Image (stdlib)
+// rather than glfw-purego's internal *Image type.  Pass nil to remove
+// the current icon.
+func (w *Window) SetIcon(images []goimage.Image) {
+	if len(images) == 0 {
+		w.setIconImages(nil)
+		return
+	}
+	out := make([]Image, 0, len(images))
+	for _, img := range images {
+		if img == nil {
+			continue
+		}
+		bounds := img.Bounds()
+		width := bounds.Dx()
+		height := bounds.Dy()
+		if width <= 0 || height <= 0 {
+			continue
+		}
+		pixels := make([]uint8, width*height*4)
+		for y := 0; y < height; y++ {
+			for x := 0; x < width; x++ {
+				r, g, b, a := img.At(bounds.Min.X+x, bounds.Min.Y+y).RGBA()
+				i := (y*width + x) * 4
+				pixels[i+0] = uint8(r >> 8)
+				pixels[i+1] = uint8(g >> 8)
+				pixels[i+2] = uint8(b >> 8)
+				pixels[i+3] = uint8(a >> 8)
+			}
+		}
+		out = append(out, Image{Width: width, Height: height, Pixels: pixels})
+	}
+	w.setIconImages(out)
+}
+
+// SetIconImages is the legacy overload that accepts the internal *Image
+// (already a flat RGBA byte buffer).  Retained for callers that build
+// pixel data directly without going through image.Image.
+func (w *Window) SetIconImages(images []Image) { w.setIconImages(images) }
+
+// ── SetIconFromImages (legacy alias) ──────────────────────────────────────────
+
+// SetIconFromImages is an older convenience wrapper around SetIcon.
+// New code should call w.SetIcon(images) directly.
 func SetIconFromImages(w *Window, imgs []goimage.Image) {
 	result := make([]Image, 0, len(imgs))
 	for _, img := range imgs {
@@ -319,5 +402,5 @@ func SetIconFromImages(w *Window, imgs []goimage.Image) {
 		}
 		result = append(result, Image{Width: width, Height: height, Pixels: pixels})
 	}
-	w.SetIcon(result)
+	w.setIconImages(result)
 }

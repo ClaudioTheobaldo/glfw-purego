@@ -524,7 +524,7 @@ func (w *Window) SetInputMode(mode InputMode, value int) {
 		if w.cursor != 0 {
 			wlApplyCursor(&Cursor{handle: w.cursor, system: true})
 		} else {
-			c, _ := CreateStandardCursor(ArrowCursor)
+			c := CreateStandardCursor(ArrowCursor)
 			wlApplyCursor(c)
 		}
 	}

@@ -75,18 +75,18 @@ func main() {
 	}
 	cursors := make([]*glfw.Cursor, 0, 7)
 	for _, shape := range shapes {
-		c, err := glfw.CreateStandardCursor(shape)
-		if err != nil {
-			log.Fatalf("CreateStandardCursor: %v", err)
+		c := glfw.CreateStandardCursor(shape)
+		if c == nil {
+			log.Fatalf("CreateStandardCursor(%v): returned nil", shape)
 		}
 		cursors = append(cursors, c)
 	}
 
 	// Create custom crosshair cursor.
 	img := makeCrosshairCursor()
-	customCursor, err := glfw.CreateCursor(img, 8, 8)
-	if err != nil {
-		log.Fatalf("CreateCursor: %v", err)
+	customCursor := glfw.CreateCursorFromImage(img, 8, 8)
+	if customCursor == nil {
+		log.Fatalf("CreateCursorFromImage: returned nil")
 	}
 	cursors = append(cursors, customCursor)
 

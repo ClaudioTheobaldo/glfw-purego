@@ -348,7 +348,7 @@ func (w *Window) Show() { w.nsWin().Send(selMakeKeyAndOrderFront, objc.ID(0)) }
 
 // SetIcon sets the window icon from a slice of candidate images.
 // macOS does not support per-window icons; no-op.
-func (w *Window) SetIcon(_ []Image) {}
+func (w *Window) setIconImages(_ []Image) {}
 
 // ── Window attributes ─────────────────────────────────────────────────────────
 

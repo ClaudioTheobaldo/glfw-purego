@@ -236,11 +236,11 @@ func monitorFromNSScreen(screen objc.ID) *Monitor {
 // ── Public monitor API ────────────────────────────────────────────────────────
 
 // GetMonitors returns all connected monitors ordered primary-first.
-func GetMonitors() ([]*Monitor, error) {
+func GetMonitors() []*Monitor {
 	screens := objc.ID(objc.GetClass("NSScreen")).Send(selScreens)
 	count := objc.Send[uint64](screens, selCount)
 	if count == 0 {
-		return nil, nil
+		return nil
 	}
 
 	monitors := make([]*Monitor, 0, count)
@@ -268,7 +268,7 @@ func GetMonitors() ([]*Monitor, error) {
 	if primary != nil {
 		monitors = append([]*Monitor{primary}, monitors...)
 	}
-	return monitors, nil
+	return monitors
 }
 
 // GetPrimaryMonitor returns the primary (main) monitor.
@@ -311,7 +311,7 @@ func registerMonitorReconfigCB() {
 		if darwinMonitorCb == nil {
 			return
 		}
-		newMonitors, _ := GetMonitors()
+		newMonitors := GetMonitors()
 		diffAndFireMonitorCallbacks(darwinCachedMonitors, newMonitors, darwinMonitorCb)
 		darwinCachedMonitors = newMonitors
 	})

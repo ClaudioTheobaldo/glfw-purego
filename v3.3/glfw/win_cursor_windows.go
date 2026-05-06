@@ -2,23 +2,23 @@
 
 package glfw
 
-// CreateCursor creates a custom cursor from an RGBA image.
-// xhot and yhot specify the cursor hotspot in pixels from the top-left corner.
-// The caller must call DestroyCursor when the cursor is no longer needed.
-func CreateCursor(image *Image, xhot, yhot int) (*Cursor, error) {
+// createCursorRGBA is the platform-specific custom-cursor builder; the public
+// CreateCursor wrapper in window.go handles the image.Image conversion.
+func createCursorRGBA(image *Image, xhot, yhot int) *Cursor {
 	if image == nil {
-		return nil, &Error{Code: InvalidValue, Desc: "nil image"}
+		return nil
 	}
 	h := createHICONCursor(*image, xhot, yhot, false)
 	if h == 0 {
-		return nil, &Error{Code: PlatformError, Desc: "CreateCursor: CreateIconIndirect failed"}
+		return nil
 	}
-	return &Cursor{handle: h}, nil
+	return &Cursor{handle: h}
 }
 
 // CreateStandardCursor returns a cursor with one of the standard shapes.
+// Mirrors upstream go-gl/glfw v3.3: no error return; nil on failure.
 // The caller must call DestroyCursor when done.
-func CreateStandardCursor(shape StandardCursorShape) (*Cursor, error) {
+func CreateStandardCursor(shape StandardCursorShape) *Cursor {
 	var idc uintptr
 	switch shape {
 	case ArrowCursor:
@@ -48,14 +48,14 @@ func CreateStandardCursor(shape StandardCursorShape) (*Cursor, error) {
 	case NotAllowedCursor:
 		idc = _IDC_NO
 	default:
-		return nil, &Error{Code: InvalidValue, Desc: "unknown cursor shape"}
+		return nil
 	}
 	h, err := loadCursorW(0, idc)
 	if err != nil || h == 0 {
-		return nil, &Error{Code: PlatformError, Desc: "CreateStandardCursor: LoadCursor failed"}
+		return nil
 	}
 	// System cursors must NOT be destroyed; mark them with system=true.
-	return &Cursor{handle: h, system: true}, nil
+	return &Cursor{handle: h, system: true}
 }
 
 // DestroyCursor releases resources associated with a cursor created by

@@ -146,17 +146,17 @@ type _XRRCrtcInfo struct {
 
 // GetMonitors returns all currently connected monitors via XRandR.
 // Falls back to a single stub monitor when XRandR is unavailable.
-func GetMonitors() ([]*Monitor, error) {
+func GetMonitors() []*Monitor {
 	if x11Display == 0 {
-		return nil, nil
+		return nil
 	}
 	if err := loadXrandr(); err != nil {
-		return []*Monitor{{name: "default"}}, nil
+		return []*Monitor{{name: "default"}}
 	}
 
 	resPtr := xrrGetScreenResources(x11Display, x11Root)
 	if resPtr == 0 {
-		return nil, &Error{Code: PlatformError, Desc: "XRRGetScreenResources failed"}
+		return nil
 	}
 	defer xrrFreeScreenResources(resPtr)
 	sr := (*_XRRScreenResources)(nativePtrFromUintptr(resPtr))
@@ -266,12 +266,12 @@ func GetMonitors() ([]*Monitor, error) {
 		xrrFreeOutputInfo(oiPtr)
 	}
 
-	return monitors, nil
+	return monitors
 }
 
 // GetPrimaryMonitor returns the primary monitor (first in the list).
 func GetPrimaryMonitor() *Monitor {
-	monitors, _ := GetMonitors()
+	monitors := GetMonitors()
 	if len(monitors) == 0 {
 		return nil
 	}
