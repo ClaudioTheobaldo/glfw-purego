@@ -1,9 +1,16 @@
 # Build artifacts produced by `go run` / `go build .` in the repo root or
 # example directories.  These are local-only; never commit them.
 /glfw-purego
+/glfw-purego.exe
 /main.go
 /render_smoke
+/render_smoke.exe
 /test_darwin
 /test_linux
 /test_wayland
+/test_windows
+/test_windows.exe
 /examples/*/[0-9][0-9]_*[a-z]
+/examples/*/*.exe
+/examples/hello_window/
+/examples/triangle/
