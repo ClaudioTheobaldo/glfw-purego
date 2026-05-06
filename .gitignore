@@ -1,20 +1,9 @@
-# Binaries
-*.exe
-*.dll
-*.so
-*.dylib
-
-# Test binaries
-*.test
-
-# Output of go build
-/dist/
-
-# Go workspace file
-go.work
-go.work.sum
-
-# IDE
-.idea/
-.vscode/
-*.swp
+# Build artifacts produced by `go run` / `go build .` in the repo root or
+# example directories.  These are local-only; never commit them.
+/glfw-purego
+/main.go
+/render_smoke
+/test_darwin
+/test_linux
+/test_wayland
+/examples/*/[0-9][0-9]_*[a-z]
