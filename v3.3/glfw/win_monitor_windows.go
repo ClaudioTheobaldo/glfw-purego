@@ -4,6 +4,7 @@ package glfw
 
 import (
 	"math"
+	"sync"
 	"syscall"
 	"unsafe"
 )
@@ -35,15 +36,33 @@ func GetPrimaryMonitor() *Monitor {
 	return nil
 }
 
+// monitorEnum holds the state used by the EnumDisplayMonitors callback.
+// The callback is compiled exactly once — Go's runtime caps the total
+// number of syscall.NewCallback invocations process-wide, so re-compiling
+// per call would crash any program that polls GetMonitors() in a loop
+// after ~2000 frames.
+var (
+	monitorEnumMu       sync.Mutex
+	monitorEnumResult   []*Monitor
+	monitorEnumCBOnce   sync.Once
+	monitorEnumCBPtr    uintptr
+)
+
 // collectMonitors enumerates all monitors via EnumDisplayMonitors.
 func collectMonitors() []*Monitor {
-	var monitors []*Monitor
-	cb := syscall.NewCallback(func(hmon, _, _, _ uintptr) uintptr {
-		monitors = append(monitors, monitorFromHandle(hmon))
-		return 1 // continue
+	monitorEnumCBOnce.Do(func() {
+		monitorEnumCBPtr = syscall.NewCallback(func(hmon, _, _, _ uintptr) uintptr {
+			monitorEnumResult = append(monitorEnumResult, monitorFromHandle(hmon))
+			return 1 // continue
+		})
 	})
-	enumDisplayMonitors(0, 0, cb, 0)
-	return monitors
+	monitorEnumMu.Lock()
+	defer monitorEnumMu.Unlock()
+	monitorEnumResult = monitorEnumResult[:0]
+	enumDisplayMonitors(0, 0, monitorEnumCBPtr, 0)
+	out := make([]*Monitor, len(monitorEnumResult))
+	copy(out, monitorEnumResult)
+	return out
 }
 
 // monitorFromHandle builds a Monitor from a HMONITOR handle.
