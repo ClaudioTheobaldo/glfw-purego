@@ -158,7 +158,11 @@ func CreateWindow(width, height int, title string, monitor *Monitor, share *Wind
 	// On headless CI runners context creation may return 0 — that is non-fatal;
 	// the window is still usable for non-rendering tests.
 	if ClientAPI(h[ClientAPIs]) == OpenGLAPI {
-		if ctx := createNSGLContext(h, contentView); ctx != 0 {
+		var shareCtx uintptr
+		if share != nil {
+			shareCtx = share.nsglContext
+		}
+		if ctx := createNSGLContextShared(h, contentView, shareCtx); ctx != 0 {
 			w.nsglContext = uintptr(ctx)
 		}
 	}

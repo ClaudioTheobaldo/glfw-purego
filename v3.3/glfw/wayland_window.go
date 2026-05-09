@@ -186,7 +186,11 @@ func CreateWindow(width, height int, title string, monitor *Monitor, share *Wind
 
 	// Pass wl.display as the EGL native display so Mesa picks the Wayland
 	// platform (EGL_PLATFORM_WAYLAND_KHR) instead of trying EGL_DEFAULT_DISPLAY.
-	surf, ctx, err := createEGLContext(wl.display, w.wlEGLWin, h)
+	var shareCtx uintptr
+	if share != nil {
+		shareCtx = share.eglContext
+	}
+	surf, ctx, err := createEGLContextShared(wl.display, w.wlEGLWin, h, shareCtx)
 	if err != nil {
 		wlEGLWindowDestroy(w.wlEGLWin)
 		w.wlEGLWin = 0

@@ -144,9 +144,16 @@ func buildNSGLPixelFormat(h map[Hint]int) objc.ID {
 
 // ── NSOpenGLContext creation ──────────────────────────────────────────────────
 
-// createNSGLContext creates an NSOpenGLContext for the given NSView content view.
-// Returns 0 if context creation fails (e.g. on a headless CI runner without GPU).
+// createNSGLContext is createNSGLContextShared with no donor.
 func createNSGLContext(h map[Hint]int, contentView objc.ID) objc.ID {
+	return createNSGLContextShared(h, contentView, 0)
+}
+
+// createNSGLContextShared creates an NSOpenGLContext for the given content
+// view.  When shareCtx != 0, the new context shares textures / buffers /
+// shader programs with that NSOpenGLContext.  Returns 0 if context creation
+// fails (e.g. on a headless CI runner without GPU).
+func createNSGLContextShared(h map[Hint]int, contentView objc.ID, shareCtx uintptr) objc.ID {
 	pf := buildNSGLPixelFormat(h)
 	if pf == 0 {
 		return 0
@@ -154,7 +161,7 @@ func createNSGLContext(h map[Hint]int, contentView objc.ID) objc.ID {
 	defer pf.Send(selRelease)
 
 	ctx := objc.ID(objc.GetClass("NSOpenGLContext")).Send(selAlloc).Send(
-		selNSGLInitWithFormatShare, pf, objc.ID(0) /* no share */)
+		selNSGLInitWithFormatShare, pf, objc.ID(shareCtx))
 	if ctx == 0 {
 		return 0
 	}

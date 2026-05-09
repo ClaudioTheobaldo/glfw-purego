@@ -106,8 +106,13 @@ func CreateWindow(width, height int, title string, monitor *Monitor, share *Wind
 			int32(len(title)))
 	}
 
-	// Create EGL context — pass x11Display so EGL can connect to the X server
-	surf, ctx, err := createEGLContext(x11Display, uintptr(xwin), h)
+	// Create EGL context — pass x11Display so EGL can connect to the X server.
+	// share, when non-nil, donates its EGLContext for resource sharing.
+	var shareCtx uintptr
+	if share != nil {
+		shareCtx = share.eglContext
+	}
+	surf, ctx, err := createEGLContextShared(x11Display, uintptr(xwin), h, shareCtx)
 	if err != nil {
 		xDestroyWindow(x11Display, xwin)
 		return nil, err
