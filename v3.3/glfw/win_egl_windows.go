@@ -61,10 +61,16 @@ func shouldUseEGL(h map[Hint]int) bool {
 // EGL context creation
 // ----------------------------------------------------------------------------
 
-// createEGLContext initialises EGL (first call only), selects a matching
-// EGLConfig, creates a window surface for hwnd, and creates an EGLContext.
-// Returns (surface, ctx) on success.
+// createEGLContext is createEGLContextShared with no donor.
 func createEGLContext(hwnd uintptr, h map[Hint]int) (surface, ctx uintptr, err error) {
+	return createEGLContextShared(hwnd, h, 0)
+}
+
+// createEGLContextShared initialises EGL (first call only), selects a
+// matching EGLConfig, creates a window surface for hwnd, and creates an
+// EGLContext that shares resources with shareCtx (or no sharing when
+// shareCtx == 0).  Returns (surface, ctx) on success.
+func createEGLContextShared(hwnd uintptr, h map[Hint]int, shareCtx uintptr) (surface, ctx uintptr, err error) {
 	if !eglLibLoaded {
 		if err = loadEGL(); err != nil {
 			return
@@ -128,12 +134,12 @@ func createEGLContext(hwnd uintptr, h map[Hint]int) (surface, ctx uintptr, err e
 		return
 	}
 
-	// Create context.
+	// Create context.  shareCtx == 0 → EGL_NO_CONTEXT (no sharing).
 	ctxAttribs := buildEGLContextAttribs(h)
 	ctx, _, _ = procEGLCreateContext.Call(
 		eglSharedDisplay,
 		config,
-		_EGL_NO_CONTEXT,
+		shareCtx,
 		uintptr(unsafe.Pointer(&ctxAttribs[0])),
 	)
 	if ctx == _EGL_NO_CONTEXT {

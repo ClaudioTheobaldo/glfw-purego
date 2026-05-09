@@ -78,7 +78,10 @@ func ExtensionSupported(extension string) bool {
 // createWGLContext performs the two-phase WGL bootstrap:
 //  1. Dummy invisible window → legacy context → load extension procs
 //  2. Real window DC → wglChoosePixelFormatARB or legacy → wglCreateContextAttribsARB
-func createWGLContext(dc uintptr, h map[Hint]int) (uintptr, error) {
+//
+// shareCtx, when non-zero, is the HGLRC of an existing context whose
+// resources (textures/buffers/programs) the new context will share.
+func createWGLContext(dc uintptr, h map[Hint]int, shareCtx uintptr) (uintptr, error) {
 	if !wglExtLoaded {
 		if err := loadWGLExtensions(); err != nil {
 			return 0, err
@@ -103,14 +106,14 @@ func createWGLContext(dc uintptr, h map[Hint]int) (uintptr, error) {
 	if wglCreateContextAttribsARB != 0 {
 		attribs := buildContextAttribs(h)
 		hglrc, _, _ := syscall.SyscallN(wglCreateContextAttribsARB,
-			dc, 0, uintptr(unsafe.Pointer(&attribs[0])))
+			dc, shareCtx, uintptr(unsafe.Pointer(&attribs[0])))
 		if hglrc == 0 {
 			// Driver rejected the attrib list — fall back to legacy context.
-			return wglLegacyContext(dc)
+			return wglLegacyContextShared(dc, shareCtx)
 		}
 		return hglrc, nil
 	}
-	return wglLegacyContext(dc)
+	return wglLegacyContextShared(dc, shareCtx)
 }
 
 // loadWGLExtensions creates a throwaway 1×1 window, makes a legacy GL context
@@ -286,9 +289,22 @@ func buildPixelFormatAttribs(h map[Hint]int) []int32 {
 
 // wglLegacyContext creates a plain legacy OpenGL context (no attrib list).
 func wglLegacyContext(dc uintptr) (uintptr, error) {
+	return wglLegacyContextShared(dc, 0)
+}
+
+// wglLegacyContextShared creates a plain legacy OpenGL context and, if
+// shareCtx != 0, calls wglShareLists so the new context shares textures /
+// buffers / programs with the donor.
+func wglLegacyContextShared(dc uintptr, shareCtx uintptr) (uintptr, error) {
 	hglrc, err := wglCreateContext(dc)
 	if err != nil {
 		return 0, &Error{Code: PlatformError, Desc: err.Error()}
+	}
+	if shareCtx != 0 {
+		if err := wglShareLists(shareCtx, hglrc); err != nil {
+			wglDeleteContext(hglrc)
+			return 0, &Error{Code: PlatformError, Desc: err.Error()}
+		}
 	}
 	return hglrc, nil
 }

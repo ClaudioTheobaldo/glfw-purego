@@ -140,6 +140,7 @@ var (
 	procWglGetProcAddress    *windows.LazyProc
 	procWglGetCurrentDC      *windows.LazyProc
 	procWglGetCurrentContext *windows.LazyProc
+	procWglShareLists        *windows.LazyProc
 )
 
 func loadOpenGL32() error {
@@ -151,6 +152,7 @@ func loadOpenGL32() error {
 	procWglDeleteContext     = modOpenGL32.NewProc("wglDeleteContext")
 	procWglMakeCurrent       = modOpenGL32.NewProc("wglMakeCurrent")
 	procWglGetProcAddress    = modOpenGL32.NewProc("wglGetProcAddress")
+	procWglShareLists        = modOpenGL32.NewProc("wglShareLists")
 	procWglGetCurrentDC      = modOpenGL32.NewProc("wglGetCurrentDC")
 	procWglGetCurrentContext = modOpenGL32.NewProc("wglGetCurrentContext")
 	return nil
@@ -514,6 +516,17 @@ func wglCreateContext(dc uintptr) (uintptr, error) {
 		return 0, fmt.Errorf("wglCreateContext: %w", e)
 	}
 	return r, nil
+}
+
+// wglShareLists makes hglrcDst share its display lists / textures /
+// buffers / programs with hglrcSrc.  Returns an error if the call fails;
+// caller is responsible for cleaning up hglrcDst on error.
+func wglShareLists(hglrcSrc, hglrcDst uintptr) error {
+	r, _, e := procWglShareLists.Call(hglrcSrc, hglrcDst)
+	if r == 0 {
+		return fmt.Errorf("wglShareLists: %w", e)
+	}
+	return nil
 }
 
 func wglDeleteContext(hglrc uintptr) {

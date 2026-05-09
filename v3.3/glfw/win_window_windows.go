@@ -13,9 +13,12 @@ import (
 
 // CreateWindow creates a new window with an associated OpenGL context.
 //
-// monitor and share are accepted for API compatibility but ignored in this
-// initial Windows implementation (fullscreen and context sharing are not yet
-// implemented).
+// share, when non-nil, is another already-created Window whose context this
+// new context will share resources with (textures, buffers, shader programs,
+// etc.).  The shared context must use the same client API.
+//
+// monitor is accepted for API compatibility but ignored in this initial
+// Windows implementation (fullscreen via SetMonitor still works).
 func CreateWindow(width, height int, title string, monitor *Monitor, share *Window) (*Window, error) {
 	// Snapshot the current hints so concurrent hint changes don't race.
 	hints.mu.Lock()
@@ -47,7 +50,11 @@ func CreateWindow(width, height int, title string, monitor *Monitor, share *Wind
 
 	if shouldUseEGL(h) {
 		// EGL path — used for OpenGL ES (via ANGLE on Windows).
-		surf, ctx, eglErr := createEGLContext(hwnd, h)
+		var shareCtx uintptr
+		if share != nil && share.useEGL {
+			shareCtx = share.eglContext
+		}
+		surf, ctx, eglErr := createEGLContextShared(hwnd, h, shareCtx)
 		if eglErr != nil {
 			destroyWindow(hwnd)
 			return nil, eglErr
@@ -60,7 +67,11 @@ func CreateWindow(width, height int, title string, monitor *Monitor, share *Wind
 			destroyWindow(hwnd)
 			return nil, &Error{Code: PlatformError, Desc: dcErr.Error()}
 		}
-		hglrc, ctxErr := createWGLContext(dc, h)
+		var shareCtx uintptr
+		if share != nil && !share.useEGL {
+			shareCtx = share.hglrc
+		}
+		hglrc, ctxErr := createWGLContext(dc, h, shareCtx)
 		if ctxErr != nil {
 			releaseDC(hwnd, dc)
 			destroyWindow(hwnd)
