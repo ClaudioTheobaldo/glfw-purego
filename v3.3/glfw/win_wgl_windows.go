@@ -235,7 +235,7 @@ func buildContextAttribs(h map[Hint]int) []int32 {
 		a = append(a, _WGL_CONTEXT_FLAGS_ARB, flags)
 	}
 
-	switch OpenGLProfile(h[OpenGLProfileHint]) {
+	switch h[OpenGLProfileHint] {
 	case CoreProfile:
 		a = append(a, _WGL_CONTEXT_PROFILE_MASK_ARB, _WGL_CONTEXT_CORE_PROFILE_BIT_ARB)
 	case CompatibilityProfile:

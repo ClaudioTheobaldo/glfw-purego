@@ -10,6 +10,7 @@
 /test_wayland
 /test_windows
 /test_windows.exe
+/[0-9][0-9]_*.exe
 /examples/*/[0-9][0-9]_*[a-z]
 /examples/*/*.exe
 /examples/hello_window/

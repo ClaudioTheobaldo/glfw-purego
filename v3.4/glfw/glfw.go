@@ -59,7 +59,6 @@ type (
 	Hint               = base.Hint
 	ClientAPI          = base.ClientAPI
 	ContextCreationAPI = base.ContextCreationAPI
-	OpenGLProfile      = base.OpenGLProfile
 	ErrorCode          = base.ErrorCode
 )
 
@@ -157,6 +156,7 @@ const (
 	OpenGLForwardCompatible Hint = base.OpenGLForwardCompatible
 	OpenGLDebugContext      Hint = base.OpenGLDebugContext
 	OpenGLProfileHint       Hint = base.OpenGLProfileHint
+	OpenGLProfile           Hint = base.OpenGLProfile
 	ContextReleaseBehavior  Hint = base.ContextReleaseBehavior
 	ContextNoError          Hint = base.ContextNoError
 	ContextCreationAPIHint  Hint = base.ContextCreationAPIHint
@@ -177,9 +177,12 @@ const (
 	NoAPI       ClientAPI = base.NoAPI
 
 	// OpenGL profiles
-	AnyProfile           OpenGLProfile = base.AnyProfile
-	CoreProfile          OpenGLProfile = base.CoreProfile
-	CompatibilityProfile OpenGLProfile = base.CompatibilityProfile
+	AnyProfile = base.AnyProfile
+	CoreProfile = base.CoreProfile
+	CompatibilityProfile = base.CompatibilityProfile
+	OpenGLAnyProfile     = base.OpenGLAnyProfile
+	OpenGLCoreProfile    = base.OpenGLCoreProfile
+	OpenGLCompatProfile  = base.OpenGLCompatProfile
 
 	// Context creation APIs
 	NativeContextAPI  ContextCreationAPI = base.NativeContextAPI

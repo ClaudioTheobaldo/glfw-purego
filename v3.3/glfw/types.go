@@ -21,8 +21,9 @@ type InputMode int
 // Hint is a window or context creation hint.
 type Hint int
 
-// OpenGLProfile specifies the OpenGL context profile.
-type OpenGLProfile int
+// OpenGLProfile values are kept as untyped int constants so callers can
+// pass them straight to WindowHint, matching upstream go-gl/glfw which
+// also leaves them untyped.
 
 // ClientAPI specifies the client API to create a context for.
 type ClientAPI int
@@ -158,6 +159,7 @@ const (
 	OpenGLForwardCompatible Hint = 0x00022006
 	OpenGLDebugContext     Hint = 0x00022007
 	OpenGLProfileHint      Hint = 0x00022008
+	OpenGLProfile          Hint = 0x00022008 // upstream go-gl/glfw name for the same hint
 	ContextReleaseBehavior Hint = 0x00022009
 	ContextNoError         Hint = 0x0002200A
 	ContextCreationAPIHint Hint = 0x0002200B
@@ -185,10 +187,14 @@ const (
 	OpenGLESAPI ClientAPI = 0x00030002
 	NoAPI       ClientAPI = 0
 
-	// OpenGL profiles
-	AnyProfile            OpenGLProfile = 0
-	CoreProfile           OpenGLProfile = 0x00032001
-	CompatibilityProfile  OpenGLProfile = 0x00032002
+	// OpenGL profiles (untyped int matches upstream go-gl/glfw).
+	AnyProfile           = 0
+	CoreProfile          = 0x00032001
+	CompatibilityProfile = 0x00032002
+	// Upstream go-gl/glfw spellings for the same values.
+	OpenGLAnyProfile    = 0
+	OpenGLCoreProfile   = 0x00032001
+	OpenGLCompatProfile = 0x00032002
 
 	// Context creation APIs
 	NativeContextAPI  ContextCreationAPI = 0x00036001
