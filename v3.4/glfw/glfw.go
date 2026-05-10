@@ -456,6 +456,9 @@ func WaitEventsTimeout(timeout float64) { base.WaitEventsTimeout(timeout) }
 func PostEmptyEvent()                   { base.PostEmptyEvent() }
 
 func WindowHint(target Hint, hint int) { base.WindowHint(target, hint) }
+func SetErrorCallback(cb func(code ErrorCode, desc string)) func(code ErrorCode, desc string) {
+	return base.SetErrorCallback(cb)
+}
 func DefaultWindowHints()              { base.DefaultWindowHints() }
 
 func GetMonitors() []*Monitor { return base.GetMonitors() }

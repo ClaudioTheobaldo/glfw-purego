@@ -1,6 +1,46 @@
 package glfw
 
-import "fmt"
+import (
+	"fmt"
+	"sync"
+)
+
+// errorCb is the user-registered error callback (see SetErrorCallback).
+// Errors are still returned in-band as *Error from the failing function;
+// the callback is an additional notification mechanism that mirrors the
+// GLFW C API and upstream go-gl/glfw.
+var (
+	errorMu sync.Mutex
+	errorCb func(code ErrorCode, desc string)
+)
+
+// SetErrorCallback registers cb to be invoked whenever a GLFW operation
+// reports an error.  Returns the previous callback, if any.  Pass nil to
+// unregister.
+//
+// The callback receives the same (code, desc) pair embedded in the
+// *Error value returned by the failing function — registering one is
+// optional but useful when you want a single point of error logging
+// across the whole library.
+func SetErrorCallback(cb func(code ErrorCode, desc string)) func(code ErrorCode, desc string) {
+	errorMu.Lock()
+	defer errorMu.Unlock()
+	prev := errorCb
+	errorCb = cb
+	return prev
+}
+
+// emitError reports an error to the registered callback, if any.  Safe
+// to call without holding the caller's locks.  Internal helpers should
+// invoke this whenever they construct an *Error to return.
+func emitError(code ErrorCode, desc string) {
+	errorMu.Lock()
+	cb := errorCb
+	errorMu.Unlock()
+	if cb != nil {
+		cb(code, desc)
+	}
+}
 
 // ErrorCode represents a GLFW error code.
 type ErrorCode int

@@ -1,6 +1,7 @@
 package glfw
 
 import (
+	"fmt"
 	goimage "image"
 	"sync"
 	"unsafe"
@@ -50,10 +51,37 @@ func resetHints() {
 }
 
 // WindowHint sets a window/context creation hint for the next CreateWindow call.
+//
+// Unrecognised hint targets are recorded but also reported via the
+// error-callback as InvalidEnum, matching upstream GLFW.
 func WindowHint(target Hint, hint int) {
+	if !isValidHint(target) {
+		emitError(InvalidEnum, fmt.Sprintf("WindowHint: unrecognised hint 0x%x", int(target)))
+	}
 	hints.mu.Lock()
 	hints.m[target] = hint
 	hints.mu.Unlock()
+}
+
+// isValidHint reports whether target is a hint key glfw-purego recognises.
+// Unknown hints are still stored so future versions can act on them.
+func isValidHint(target Hint) bool {
+	switch target {
+	case Focused, Iconified, Resizable, Visible, Decorated, AutoIconify,
+		Floating, Maximized, CenterCursor, TransparentFramebuffer, Hovered,
+		FocusOnShow, RedBits, GreenBits, BlueBits, AlphaBits, DepthBits,
+		StencilBits, AccumRedBits, AccumGreenBits, AccumBlueBits,
+		AccumAlphaBits, AuxBuffers, Stereo, Samples, SRGBCapable,
+		RefreshRate, DoubleBuffer, ClientAPIs, ContextVersionMajor,
+		ContextVersionMinor, ContextRevision, ContextRobustness,
+		OpenGLForwardCompatible, OpenGLDebugContext, OpenGLProfileHint,
+		ContextReleaseBehavior, ContextNoError,
+		ContextCreationAPIHint, ScaleToMonitor, CocoaRetinaFramebuffer,
+		CocoaFrameNAME, CocoaGraphicsSwitching, JoystickHatButtons,
+		CocoaChdirResources, CocoaMenubar:
+		return true
+	}
+	return false
 }
 
 // DefaultWindowHints resets all window hints to their default values.
