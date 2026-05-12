@@ -53,7 +53,7 @@ func loadEGL() error {
 // context creation.  Either an explicit ClientAPI=OpenGLESAPI hint or an
 // explicit ContextCreationAPIHint=EGLContextAPI is sufficient.
 func shouldUseEGL(h map[Hint]int) bool {
-	return ClientAPI(h[ClientAPIs]) == OpenGLESAPI ||
+	return h[ClientAPIs] == OpenGLESAPI ||
 		ContextCreationAPI(h[ContextCreationAPIHint]) == EGLContextAPI
 }
 
@@ -100,7 +100,7 @@ func createEGLContextShared(hwnd uintptr, h map[Hint]int, shareCtx uintptr) (sur
 		// Without this the current rendering API is EGL_NONE and
 		// eglCreateContext returns EGL_BAD_MATCH.
 		api := _EGL_OPENGL_ES_API
-		if ClientAPI(h[ClientAPIs]) == OpenGLAPI {
+		if h[ClientAPIs] == OpenGLAPI {
 			api = _EGL_OPENGL_API
 		}
 		procEGLBindAPI.Call(api)
@@ -229,7 +229,7 @@ func buildEGLConfigAttribs(h map[Hint]int) []int32 {
 	// Choose the renderable type bit based on API and requested version.
 	renderableType := _EGL_OPENGL_ES2_BIT
 	switch {
-	case ClientAPI(h[ClientAPIs]) == OpenGLAPI:
+	case h[ClientAPIs] == OpenGLAPI:
 		renderableType = _EGL_OPENGL_BIT
 	case h[ContextVersionMajor] >= 3:
 		renderableType = _EGL_OPENGL_ES3_BIT

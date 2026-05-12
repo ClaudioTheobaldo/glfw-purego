@@ -25,8 +25,9 @@ type Hint int
 // pass them straight to WindowHint, matching upstream go-gl/glfw which
 // also leaves them untyped.
 
-// ClientAPI specifies the client API to create a context for.
-type ClientAPI int
+// ClientAPI values are kept as untyped int constants so callers can
+// pass them straight to WindowHint, matching upstream go-gl/glfw.
+// The hint key is also called ClientAPI (the upstream spelling).
 
 // ContextCreationAPI specifies which API to use for context creation.
 type ContextCreationAPI int
@@ -152,6 +153,7 @@ const (
 	RefreshRate            Hint = 0x0002100F
 	DoubleBuffer           Hint = 0x00021010
 	ClientAPIs             Hint = 0x00022001 // selects the client API; value is a ClientAPI constant
+	ClientAPI              Hint = 0x00022001 // upstream go-gl/glfw name for the same hint
 	ContextVersionMajor    Hint = 0x00022002
 	ContextVersionMinor    Hint = 0x00022003
 	ContextRevision        Hint = 0x00022004
@@ -182,10 +184,10 @@ const (
 	False    int = 0
 	DontCare int = -1
 
-	// Client APIs
-	OpenGLAPI   ClientAPI = 0x00030001
-	OpenGLESAPI ClientAPI = 0x00030002
-	NoAPI       ClientAPI = 0
+	// Client APIs (untyped int matches upstream go-gl/glfw).
+	OpenGLAPI   = 0x00030001
+	OpenGLESAPI = 0x00030002
+	NoAPI       = 0
 
 	// OpenGL profiles (untyped int matches upstream go-gl/glfw).
 	AnyProfile           = 0

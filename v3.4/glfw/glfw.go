@@ -57,7 +57,6 @@ type (
 	PeripheralEvent    = base.PeripheralEvent
 	InputMode          = base.InputMode
 	Hint               = base.Hint
-	ClientAPI          = base.ClientAPI
 	ContextCreationAPI = base.ContextCreationAPI
 	ErrorCode          = base.ErrorCode
 )
@@ -149,6 +148,7 @@ const (
 	RefreshRate             Hint = base.RefreshRate
 	DoubleBuffer            Hint = base.DoubleBuffer
 	ClientAPIs              Hint = base.ClientAPIs
+	ClientAPI               Hint = base.ClientAPI
 	ContextVersionMajor     Hint = base.ContextVersionMajor
 	ContextVersionMinor     Hint = base.ContextVersionMinor
 	ContextRevision         Hint = base.ContextRevision
@@ -172,9 +172,9 @@ const (
 	DontCare = -1
 
 	// Client APIs
-	OpenGLAPI   ClientAPI = base.OpenGLAPI
-	OpenGLESAPI ClientAPI = base.OpenGLESAPI
-	NoAPI       ClientAPI = base.NoAPI
+	OpenGLAPI   = base.OpenGLAPI
+	OpenGLESAPI = base.OpenGLESAPI
+	NoAPI       = base.NoAPI
 
 	// OpenGL profiles
 	AnyProfile = base.AnyProfile
